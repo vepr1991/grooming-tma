@@ -17,15 +17,32 @@
         <div id="services-list" class="list"></div>
     </div>
 
-    <div id="view-booking" style="display: none;">
-        <h3>Выберите дату и время</h3>
-        <input type="date" id="date-picker" class="input-full">
+<div id="view-booking" style="display: none;">
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <button id="btn-prev-month" class="nav-btn">‹</button>
+                <span id="calendar-month-label">Январь 2026</span>
+                <button id="btn-next-month" class="nav-btn">›</button>
+            </div>
+
+            <div class="weekdays-row">
+                <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+            </div>
+
+            <div id="calendar-grid" class="days-grid"></div>
+        </div>
+
+        <h3 id="slots-title" style="margin-top: 20px; display:none;">Доступное время</h3>
         <div id="slots-grid" class="slots-grid"></div>
 
-        <h3>Ваши данные</h3>
-        <input type="text" id="pet-name" placeholder="Кличка питомца" class="input-full">
-        <input type="tel" id="phone" placeholder="Ваш телефон" class="input-full">
+        <h3 id="form-title" style="display:none;">Ваши данные</h3>
+        <div id="form-block" style="display:none;">
+            <input type="text" id="pet-name" placeholder="Кличка питомца" class="input-full">
+            <input type="tel" id="phone" placeholder="Ваш телефон" class="input-full">
+        </div>
     </div>
+
+    <div id="toast" class="toast hidden">Сообщение</div>
 
     <div id="view-success" style="display: none; text-align: center; padding: 50px 20px;">
         <h1>✅ Вы записаны!</h1>

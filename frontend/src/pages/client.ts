@@ -3,43 +3,49 @@ import { initTelegram, Telegram } from '../core/tg';
 
 initTelegram();
 
-// Логика получения ID мастера (приоритеты):
-// 1. Попробуем взять из URL (то, что мы добавили в боте: ?start_param=...)
+// --- STATE ---
 const urlParams = new URLSearchParams(window.location.search);
-const urlStartParam = urlParams.get('start_param');
+const masterId = urlParams.get('start_param') || Telegram.WebApp.initDataUnsafe.start_param;
 
-// 2. Попробуем взять из нативных данных Telegram (если открыли через Menu Button или Direct Link)
-const tgStartParam = Telegram.WebApp.initDataUnsafe.start_param;
-
-// 3. Итоговый ID. (Если ни того ни другого нет — null)
-const masterId = urlStartParam || tgStartParam;
-
-// ДЛЯ ОТЛАДКИ (Если снова ошибка — увидишь этот alert)
 if (!masterId) {
-    Telegram.WebApp.showAlert("Ошибка: Не передан ID мастера. Попробуйте перезайти по ссылке.");
+    showToast("Ошибка: Не передан ID мастера");
 }
 
 let currentService: any = null;
-let selectedSlot: string | null = null;
+let selectedDateStr: string | null = null; // YYYY-MM-DD
+let selectedSlot: string | null = null;    // ISO string (UTC)
 
-// DOM Elements
+// Календарь состояние
+let calDate = new Date(); // Текущий отображаемый месяц
+
+// --- DOM ELEMENTS ---
 const views = {
     profile: document.getElementById('view-profile')!,
     booking: document.getElementById('view-booking')!,
     success: document.getElementById('view-success')!
 };
 
+// --- TOAST ---
+function showToast(msg: string) {
+    const el = document.getElementById('toast');
+    if(!el) { alert(msg); return; }
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 3000);
+}
+
+// --- INIT LOADING ---
 async function loadMaster() {
     try {
         const master = await apiFetch(`/masters/${masterId}`);
         document.getElementById('m-name')!.textContent = master.salon_name || 'Салон';
         document.getElementById('m-desc')!.textContent = master.description || '';
-        if(master.avatar_url) (document.getElementById('m-img') as HTMLImageElement).src = master.avatar_url; // + host if needed
+        if(master.avatar_url) (document.getElementById('m-img') as HTMLImageElement).src = master.avatar_url;
 
         const services = await apiFetch(`/masters/${masterId}/services`);
         renderServices(services);
     } catch (e) {
-        alert("Ошибка загрузки данных мастера");
+        showToast("Ошибка загрузки профиля");
     }
 }
 
@@ -48,9 +54,7 @@ function renderServices(services: any[]) {
     container.innerHTML = '';
     services.forEach(s => {
         const btn = document.createElement('div');
-        // Добавляем правильные классы из нового CSS
         btn.className = 'card service-card';
-
         btn.innerHTML = `
             <div class="service-info">
                 <b>${s.name}</b>
@@ -58,42 +62,146 @@ function renderServices(services: any[]) {
             </div>
             <div class="service-price">${s.price} ₸</div>
         `;
-
         btn.onclick = () => selectService(s);
         container.appendChild(btn);
     });
 }
 
-async function selectService(service: any) {
+function selectService(service: any) {
     currentService = service;
     views.profile.style.display = 'none';
     views.booking.style.display = 'block';
 
-    // Load slots for today
-    const dateInput = document.getElementById('date-picker') as HTMLInputElement;
-    dateInput.valueAsDate = new Date();
-    dateInput.onchange = () => loadSlots(dateInput.value);
-    loadSlots(dateInput.value);
+    // Инициализируем календарь
+    renderCalendar();
 }
 
+// --- CALENDAR LOGIC ---
+const monthLabel = document.getElementById('calendar-month-label')!;
+const calGrid = document.getElementById('calendar-grid')!;
+
+const btnPrev = document.getElementById('btn-prev-month');
+if(btnPrev) btnPrev.onclick = () => changeMonth(-1);
+
+const btnNext = document.getElementById('btn-next-month');
+if(btnNext) btnNext.onclick = () => changeMonth(1);
+
+function changeMonth(delta: number) {
+    calDate.setMonth(calDate.getMonth() + delta);
+    renderCalendar();
+}
+
+function renderCalendar() {
+    calGrid.innerHTML = '';
+
+    const year = calDate.getFullYear();
+    const month = calDate.getMonth(); // 0-11
+
+    const monthName = calDate.toLocaleString('ru-RU', { month: 'long', year: 'numeric' });
+    monthLabel.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+    const firstDay = new Date(year, month, 1);
+    let startDayOfWeek = firstDay.getDay();
+    if (startDayOfWeek === 0) startDayOfWeek = 7;
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    // Пустые ячейки до 1 числа
+    for (let i = 1; i < startDayOfWeek; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'day-cell empty';
+        calGrid.appendChild(empty);
+    }
+
+    // Дни месяца
+    for (let day = 1; day <= daysInMonth; day++) {
+        const cell = document.createElement('div');
+        cell.className = 'day-cell';
+        cell.textContent = day.toString();
+
+        // --- ИСПРАВЛЕНИЕ: Формируем дату без сдвига поясов ---
+        const cellDate = new Date(year, month, day);
+
+        // Ручное форматирование YYYY-MM-DD
+        const yStr = cellDate.getFullYear();
+        const mStr = String(cellDate.getMonth() + 1).padStart(2, '0');
+        const dStr = String(cellDate.getDate()).padStart(2, '0');
+        const cellDateStr = `${yStr}-${mStr}-${dStr}`;
+        // ----------------------------------------------------
+
+        // Проверка: это сегодня?
+        if (cellDate.getTime() === today.getTime()) {
+            cell.classList.add('today');
+        }
+
+        // Проверка: выбрана ли эта дата?
+        if (selectedDateStr === cellDateStr) {
+            cell.classList.add('selected');
+        }
+
+        // Проверка: дата в прошлом?
+        if (cellDate < today) {
+            cell.classList.add('disabled');
+        } else {
+            cell.onclick = () => {
+                document.querySelectorAll('.day-cell').forEach(el => el.classList.remove('selected'));
+                cell.classList.add('selected');
+
+                selectedDateStr = cellDateStr;
+
+                // Сброс слота при смене даты
+                selectedSlot = null;
+                Telegram.WebApp.MainButton.hide();
+
+                document.getElementById('slots-title')!.style.display = 'block';
+                document.getElementById('form-title')!.style.display = 'none';
+                document.getElementById('form-block')!.style.display = 'none';
+
+                loadSlots(selectedDateStr);
+            };
+        }
+
+        calGrid.appendChild(cell);
+    }
+}
+
+// --- SLOTS LOGIC ---
 async function loadSlots(date: string) {
     const container = document.getElementById('slots-grid')!;
-    container.innerHTML = 'Загрузка...';
+    container.innerHTML = '<div style="grid-column:1/-1; text-align:center;">Загрузка...</div>';
+
     try {
         const slots = await apiFetch(`/masters/${masterId}/availability?date=${date}`);
         container.innerHTML = '';
-        if(slots.length === 0) container.textContent = "Нет свободных мест";
+
+        if(slots.length === 0) {
+            container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; color:#999">Нет мест на этот день</div>';
+            return;
+        }
 
         slots.forEach((isoTime: string) => {
-            const time = isoTime.split('T')[1].substring(0, 5);
+            // isoTime приходит в UTC (напр. ...T14:00:00+00:00)
+            const dateObj = new Date(isoTime);
+            // Браузер сам переведет UTC в локальное время пользователя
+            const timeStr = dateObj.toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'});
+
             const btn = document.createElement('button');
             btn.className = 'slot-btn';
-            btn.textContent = time;
+            btn.textContent = timeStr;
+
             btn.onclick = () => {
                 document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                selectedSlot = isoTime;
-                Telegram.WebApp.MainButton.setText(`Записаться на ${time}`);
+
+                selectedSlot = isoTime; // Отправляем обратно тот же UTC
+
+                document.getElementById('form-title')!.style.display = 'block';
+                document.getElementById('form-block')!.style.display = 'block';
+                setTimeout(() => document.getElementById('form-block')!.scrollIntoView({behavior:'smooth'}), 100);
+
+                Telegram.WebApp.MainButton.setText(`Записаться на ${timeStr}`);
                 Telegram.WebApp.MainButton.show();
             };
             container.appendChild(btn);
@@ -103,6 +211,7 @@ async function loadSlots(date: string) {
     }
 }
 
+// --- SUBMIT ---
 Telegram.WebApp.MainButton.onClick(async () => {
     if (!selectedSlot || !currentService) return;
 
@@ -125,17 +234,21 @@ Telegram.WebApp.MainButton.onClick(async () => {
                 starts_at: selectedSlot,
                 client_phone: phone,
                 pet_name: petName,
-                idempotency_key: Date.now().toString() // Simple ID key
+                idempotency_key: Date.now().toString()
             })
         });
 
         views.booking.style.display = 'none';
         views.success.style.display = 'block';
         Telegram.WebApp.MainButton.hide();
-    } catch (e) {
-        Telegram.WebApp.showAlert("Ошибка записи. Возможно, слот уже занят.");
-    } finally {
+    } catch (e: any) {
         Telegram.WebApp.MainButton.hideProgress();
+        if (e.message && e.message.includes('409')) {
+             Telegram.WebApp.showAlert("Упс! Время занято. Выберите другое.");
+             if(selectedDateStr) loadSlots(selectedDateStr);
+        } else {
+             Telegram.WebApp.showAlert("Ошибка записи.");
+        }
     }
 });
 

@@ -8,6 +8,7 @@ class MasterUpdate(BaseModel):
     address: Optional[str] = None
     description: Optional[str] = None
     avatar_url: Optional[str] = None
+    timezone: Optional[str] = None
 
 class ServiceModel(BaseModel):
     name: str
