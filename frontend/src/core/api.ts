@@ -1,18 +1,26 @@
 import { Telegram } from './tg';
 
-// Теперь мы используем относительный путь.
-// Запрос пойдет на тот же домен, где открыт сайт, но с префиксом /api
-const API_PREFIX = '/api';
+// Считываем переменную окружения, которую мы зададим в Render
+const ENV_API_URL = import.meta.env.VITE_API_URL;
+
+// Логика выбора базового URL:
+// 1. Если есть VITE_API_URL (на проде), используем его. Удаляем слэш в конце, если он есть.
+// 2. Если нет (локально), используем '/api', чтобы срабатывал прокси из vite.config.ts.
+const BASE_URL = ENV_API_URL ? ENV_API_URL.replace(/\/$/, '') : '/api';
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const headers = {
     'Content-Type': 'application/json',
+    // Передаем initData для валидации на бэкенде
     'X-Tg-Init-Data': Telegram.WebApp.initData,
     ...(options.headers || {}),
   };
 
   // endpoint должен начинаться с /, например /masters
-  const response = await fetch(`${API_PREFIX}${endpoint}`, {
+  // Склеиваем базовый URL и путь
+  const url = `${BASE_URL}${endpoint}`;
+
+  const response = await fetch(url, {
     ...options,
     headers,
   });
