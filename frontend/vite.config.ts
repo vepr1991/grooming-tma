@@ -12,13 +12,14 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: true, // Нужно для Docker
+    host: true,
+    // ВАЖНО: Разрешаем любой хост (чтобы ngrok не блокировался)
+    allowedHosts: true,
     proxy: {
-      // Все запросы, начинающиеся с /api, отправляем на бэкенд
       '/api': {
-        target: 'http://backend:8000', // Имя сервиса из docker-compose
+        target: 'http://backend:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''), // Убираем префикс /api перед отправкой
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },

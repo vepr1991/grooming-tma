@@ -3,9 +3,21 @@ import { initTelegram, Telegram } from '../core/tg';
 
 initTelegram();
 
+// Логика получения ID мастера (приоритеты):
+// 1. Попробуем взять из URL (то, что мы добавили в боте: ?start_param=...)
 const urlParams = new URLSearchParams(window.location.search);
-// start_param приходит из бота ?start=12345
-const masterId = Telegram.WebApp.initDataUnsafe.start_param || '123456789'; // Fallback for dev
+const urlStartParam = urlParams.get('start_param');
+
+// 2. Попробуем взять из нативных данных Telegram (если открыли через Menu Button или Direct Link)
+const tgStartParam = Telegram.WebApp.initDataUnsafe.start_param;
+
+// 3. Итоговый ID. (Если ни того ни другого нет — null)
+const masterId = urlStartParam || tgStartParam;
+
+// ДЛЯ ОТЛАДКИ (Если снова ошибка — увидишь этот alert)
+if (!masterId) {
+    Telegram.WebApp.showAlert("Ошибка: Не передан ID мастера. Попробуйте перезайти по ссылке.");
+}
 
 let currentService: any = null;
 let selectedSlot: string | null = null;
@@ -36,8 +48,17 @@ function renderServices(services: any[]) {
     container.innerHTML = '';
     services.forEach(s => {
         const btn = document.createElement('div');
+        // Добавляем правильные классы из нового CSS
         btn.className = 'card service-card';
-        btn.innerHTML = `<b>${s.name}</b><br>${s.price} ₸ / ${s.duration_min} мин`;
+
+        btn.innerHTML = `
+            <div class="service-info">
+                <b>${s.name}</b>
+                <div class="service-meta">${s.duration_min} мин</div>
+            </div>
+            <div class="service-price">${s.price} ₸</div>
+        `;
+
         btn.onclick = () => selectService(s);
         container.appendChild(btn);
     });

@@ -18,14 +18,16 @@ async def cmd_start(message: types.Message):
     # Режим Клиента (если перешли по ссылке t.me/bot?start=123)
     if len(args) > 1 and args[1].isdigit():
         master_id = args[1]
-        # Открываем WebApp с параметром start_param
+
+        # ИСПРАВЛЕНИЕ: Мы явно добавляем ?start_param=... в URL
+        # Теперь WebApp при открытии увидит этот параметр в адресной строке
         kb = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
                 text="📅 Записаться онлайн",
-                web_app=WebAppInfo(url=f"{WEBAPP_URL}/client.html")  # start_param передается Telegram-ом
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}/client.html?start_param={master_id}")
             )
         ]])
-        await message.answer(f"Нажмите кнопку ниже, чтобы записаться к мастеру.", reply_markup=kb)
+        await message.answer(f"Вы перешли по ссылке к мастеру #{master_id}. Нажмите кнопку:", reply_markup=kb)
         return
 
     # Режим Мастера (просто /start)

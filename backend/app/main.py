@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time
 import shutil
 import os
 import uuid
@@ -32,57 +32,89 @@ def get_master_profile(master_id: int):
 
 @app.get("/masters/{master_id}/services")
 def get_master_services(master_id: int):
-    res = supabase.table("services").select("*").eq("master_telegram_id", master_id).eq("is_active", True).execute()
-    return res.data
+    return supabase.table("services").select("*")\
+        .eq("master_telegram_id", master_id)\
+        .eq("is_active", True)\
+        .order("price")\
+        .execute().data
 
 
 @app.get("/masters/{master_id}/availability")
 def get_availability(master_id: int, date: str):
-    # 1. Get Working Hours for that day (dow)
-    target_date = datetime.strptime(date, "%Y-%m-%d").date()
-    dow = target_date.isoweekday()  # 1=Mon
+    print(f"DEBUG: Requesting availability for master {master_id} on {date}")
+    try:
+        # 1. Какой это день недели? (1=Понедельник, 7=Воскресенье)
+        target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        dow = target_date.isoweekday()
 
-    wh_res = supabase.table("working_hours").select("*") \
-        .eq("master_telegram_id", master_id).eq("day_of_week", dow).execute()
+        # 2. Получаем график работы
+        wh_res = supabase.table("working_hours").select("*") \
+            .eq("master_telegram_id", master_id).eq("day_of_week", dow).execute()
 
-    if not wh_res.data:
-        # Fallback: 10:00-20:00
-        start_t = datetime.strptime("10:00", "%H:%M").time()
-        end_t = datetime.strptime("20:00", "%H:%M").time()
-        slot_min = 30
-    else:
-        wh = wh_res.data[0]
-        start_t = datetime.strptime(wh['start_time'], "%H:%M:%S").time()
-        end_t = datetime.strptime(wh['end_time'], "%H:%M:%S").time()
-        slot_min = wh['slot_minutes']
+        if not wh_res.data:
+            # Если графика нет - дефолт 10:00 - 20:00
+            print("DEBUG: No custom schedule, using default 10-20")
+            start_t = time(10, 0)
+            end_t = time(20, 0)
+            slot_min = 60  # По умолчанию час, чтобы проще тестировать
+        else:
+            wh = wh_res.data[0]
+            # Supabase возвращает время как строку "HH:MM:SS"
+            start_t = datetime.strptime(wh['start_time'], "%H:%M:%S").time()
+            end_t = datetime.strptime(wh['end_time'], "%H:%M:%S").time()
+            slot_min = wh['slot_minutes']
 
-    # 2. Generate all slots
-    slots = []
-    current = datetime.combine(target_date, start_t)
-    end_dt = datetime.combine(target_date, end_t)
+        # 3. Генерируем теоретические слоты (просто список времен)
+        slots = []
+        current_dt = datetime.combine(target_date, start_t)
+        end_dt = datetime.combine(target_date, end_t)
 
-    while current < end_dt:
-        slots.append(current.isoformat())
-        current += timedelta(minutes=slot_min)
+        while current_dt < end_dt:
+            slots.append(current_dt)  # Храним как объекты datetime
+            current_dt += timedelta(minutes=slot_min)
 
-    # 3. Get existing appointments
-    start_range = datetime.combine(target_date, time(0, 0)).isoformat()
-    end_range = datetime.combine(target_date, time(23, 59)).isoformat()
+        print(f"DEBUG: Generated {len(slots)} potential slots")
 
-    apps_res = supabase.table("appointments").select("starts_at") \
-        .eq("master_telegram_id", master_id) \
-        .in_("status", ["pending", "confirmed"]) \
-        .gte("starts_at", start_range).lte("starts_at", end_range).execute()
+        # 4. Получаем занятые записи из БД
+        # Ищем записи, которые начинаются в этот день (с 00:00 до 23:59)
+        day_start = datetime.combine(target_date, time(0, 0)).isoformat()
+        day_end = datetime.combine(target_date, time(23, 59)).isoformat()
 
-    taken_times = {a['starts_at'] for a in apps_res.data}
+        apps_res = supabase.table("appointments").select("starts_at") \
+            .eq("master_telegram_id", master_id) \
+            .in_("status", ["pending", "confirmed"]) \
+            .gte("starts_at", day_start).lte("starts_at", day_end).execute()
 
-    # 4. Filter
-    # Приводим к единому формату ISO (Postgres может возвращать с Z или +05)
-    # Упрощенная логика: сравниваем строки начала (для продакшна лучше timestamp compare)
-    available = [s for s in slots if
-                 f"{s}+00:00" not in taken_times and f"{s}+05:00" not in taken_times and s not in taken_times]  # Hacky timezone check fix for demo
+        # Собираем занятые времена в список строк (обрезаем до минут для сравнения)
+        # Postgres возвращает: "2026-01-29T10:00:00+00:00" или подобные
+        taken_times = []
+        for a in apps_res.data:
+            # Парсим строку из БД обратно в datetime
+            # Обрезаем таймзону для простоты сравнения (dirty hack but works for MVP)
+            raw_time = a['starts_at'].split('+')[0].replace('T', ' ')
+            # Если там есть секунды и доли, упрощаем до минут
+            try:
+                dt = datetime.fromisoformat(raw_time)
+                taken_times.append(dt.strftime("%H:%M"))
+            except ValueError:
+                pass  # Пропускаем кривые даты
 
-    return available
+        print(f"DEBUG: Taken times: {taken_times}")
+
+        # 5. Фильтруем
+        available_slots = []
+        for s in slots:
+            slot_str = s.strftime("%H:%M")
+            if slot_str not in taken_times:
+                # Возвращаем полный ISO формат, который ждет фронтенд
+                available_slots.append(s.isoformat())
+
+        return available_slots
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()  # Выведет полную ошибку в терминал Docker
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 
 # --- AUTH / ME ---
@@ -119,7 +151,11 @@ def update_profile(update: MasterUpdate, user=Depends(validate_telegram_data)):
 
 @app.get("/me/services")
 def get_my_services(user=Depends(validate_telegram_data)):
-    return supabase.table("services").select("*").eq("master_telegram_id", user['id']).order("id").execute().data
+    # Добавили .eq("is_active", True), чтобы скрытые услуги не приходили в список
+    return supabase.table("services").select("*")\
+        .eq("master_telegram_id", user['id'])\
+        .eq("is_active", True)\
+        .order("id").execute().data
 
 
 @app.post("/me/services")
@@ -151,30 +187,44 @@ async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
 
 
 # --- BOOKING ---
-
 @app.post("/appointments")
 async def create_appointment(app_data: AppointmentCreate, user=Depends(validate_telegram_data)):
-    # 1. Validate service
-    srv = supabase.table("services").select("*").eq("id", app_data.service_id).single().execute()
-    if not srv.data or srv.data['master_telegram_id'] != app_data.master_tg_id:
-        raise HTTPException(400, "Invalid service")
-
-    # 2. Insert (Database constraint handles idempotency & slot uniqueness)
+    print(f"DEBUG: Creating appointment for master {app_data.master_tg_id}")
     try:
-        data = app_data.model_dump()
+        # 1. Валидация
+        srv = supabase.table("services").select("*").eq("id", app_data.service_id).single().execute()
+        if not srv.data or srv.data['master_telegram_id'] != app_data.master_tg_id:
+            raise HTTPException(400, "Invalid service")
+
+        # 2. Подготовка данных
+        data = app_data.model_dump(mode='json')
+
+        # --- ИСПРАВЛЕНИЕ: Переименовываем поле для базы данных ---
+        # Python: master_tg_id  ->  DB: master_telegram_id
+        data['master_telegram_id'] = data.pop('master_tg_id')
+        # --------------------------------------------------------
+
         data['client_telegram_id'] = user['id']
+
+        # 3. Вставка
+        print(f"DEBUG: Inserting data: {data}")
         res = supabase.table("appointments").insert(data).execute()
 
-        # Notify Master
-        await notify_master(app_data.master_tg_id,
-                            f"🗓 Новая запись!\nКлиент: {app_data.client_phone}\nПитомец: {app_data.pet_name}\nВремя: {app_data.starts_at}")
+        # 4. Уведомление
+        try:
+            await notify_master(data['master_telegram_id'],
+                                f"🗓 Новая запись!\nКлиент: {app_data.client_phone}\nПитомец: {app_data.pet_name}\nВремя: {app_data.starts_at}")
+        except Exception as e:
+            print(f"WARNING: Failed to notify master: {e}")
 
         return res.data[0]
-    except Exception as e:
-        if "duplicate key" in str(e) or "idx_unique_slot" in str(e):
-            raise HTTPException(409, "Slot already taken or duplicate request")
-        raise HTTPException(500, str(e))
 
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        if "duplicate key" in str(e) or "idx_unique_slot" in str(e):
+            raise HTTPException(409, "Slot already taken")
+        raise HTTPException(500, f"Server error: {str(e)}")
 
 # --- UPLOADS (Local Mock) ---
 @app.post("/uploads/avatar")
