@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админка Мастера</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('profile')">Профиль</button>
+        <button class="tab-btn" onclick="switchTab('services')">Услуги</button>
+        <button class="tab-btn" onclick="switchTab('appointments')">Записи</button>
+    </div>
+
+    <div id="tab-profile" class="tab-content active">
+        <h3>Настройки салона</h3>
+        <input type="text" id="salon-name" placeholder="Название салона" class="input-full">
+        <input type="text" id="address" placeholder="Адрес" class="input-full">
+        <input type="tel" id="phone" placeholder="Телефон для связи" class="input-full">
+        <textarea id="description" placeholder="Описание" class="input-full" rows="3"></textarea>
+        <button id="btn-save-profile" class="btn-primary">Сохранить</button>
+    </div>
+
+    <div id="tab-services" class="tab-content" style="display: none;">
+        <h3>Мои услуги</h3>
+        <div id="services-list" class="list"></div>
+
+        <hr>
+        <h4>Добавить услугу</h4>
+        <input type="text" id="new-srv-name" placeholder="Название (напр. Стрижка)" class="input-full">
+        <div style="display: flex; gap: 10px;">
+            <input type="number" id="new-srv-price" placeholder="Цена" class="input-full">
+            <input type="number" id="new-srv-dur" placeholder="Мин" value="60" class="input-full">
+        </div>
+        <button id="btn-add-service" class="btn-primary">Добавить</button>
+    </div>
+
+    <div id="tab-appointments" class="tab-content" style="display: none;">
+        <h3>Предстоящие записи</h3>
+        <button onclick="loadAppointments()" class="btn-small">Обновить</button>
+        <div id="appointments-list" class="list" style="margin-top: 10px;"></div>
+    </div>
+
+    <script type="module" src="./src/pages/admin.ts"></script>
+
+    <script>
+        window.switchTab = (tabName) => {
+            // Скрываем все
+            document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+            // Показываем нужный
+            document.getElementById(`tab-${tabName}`).style.display = 'block';
+            // Ищем кнопку (простой вариант)
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>
