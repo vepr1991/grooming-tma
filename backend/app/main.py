@@ -20,7 +20,7 @@ app.add_middleware(
 )
 
 # --- ВАЖНО: Создаем роутер с префиксом /api ---
-api_router = APIRouter(prefix="/api")
+api_router = APIRouter()
 
 
 # --- НИЖЕ ИСПОЛЬЗУЕМ @api_router ВМЕСТО @app ---
