@@ -13,13 +13,12 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
-    // ВАЖНО: Разрешаем любой хост (чтобы ngrok не блокировался)
     allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://backend:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        // rewrite убрали, так как теперь бэкенд сам ждет префикс /api
       },
     },
   },
