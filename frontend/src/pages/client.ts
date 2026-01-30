@@ -49,19 +49,40 @@ async function loadMaster() {
     }
 }
 
+// frontend/src/pages/client.ts
+
 function renderServices(services: any[]) {
     const container = document.getElementById('services-list')!;
     container.innerHTML = '';
     services.forEach(s => {
         const btn = document.createElement('div');
         btn.className = 'card service-card';
-        btn.innerHTML = `
-            <div class="service-info">
-                <b>${s.name}</b>
-                <div class="service-meta">${s.duration_min} мин</div>
-            </div>
-            <div class="service-price">${s.price} ₸</div>
-        `;
+
+        // --- Безопасное создание DOM ---
+
+        // Левая часть: Название и время
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'service-info';
+
+        const nameB = document.createElement('b');
+        nameB.textContent = s.name; // Safe
+
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'service-meta';
+        metaDiv.textContent = `${s.duration_min} мин`;
+
+        infoDiv.appendChild(nameB);
+        infoDiv.appendChild(metaDiv);
+
+        // Правая часть: Цена
+        const priceDiv = document.createElement('div');
+        priceDiv.className = 'service-price';
+        priceDiv.textContent = `${s.price} ₸`; // Safe
+
+        btn.appendChild(infoDiv);
+        btn.appendChild(priceDiv);
+        // -------------------------------
+
         btn.onclick = () => selectService(s);
         container.appendChild(btn);
     });

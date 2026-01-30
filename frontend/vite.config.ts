@@ -1,3 +1,5 @@
+// frontend/vite.config.ts
+
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
@@ -18,7 +20,9 @@ export default defineConfig({
       '/api': {
         target: 'http://backend:8000',
         changeOrigin: true,
-        // rewrite убрали, так как теперь бэкенд сам ждет префикс /api
+        // ВАЖНО: Раскомментировали rewrite!
+        // Это превращает запрос "/api/me" в "/me" для бэкенда
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },

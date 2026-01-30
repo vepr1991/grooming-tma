@@ -50,6 +50,8 @@ els.btnSave.onclick = async () => {
 const srvList = document.getElementById('services-list')!;
 const btnAddSrv = document.getElementById('btn-add-service') as HTMLButtonElement;
 
+// frontend/src/pages/admin.ts (внутри loadServices)
+
 async function loadServices() {
     try {
         const services = await apiFetch('/me/services');
@@ -57,15 +59,34 @@ async function loadServices() {
         services.forEach((s: any) => {
             const div = document.createElement('div');
             div.className = 'card';
-            div.innerHTML = `
-                <div style="display:flex; justify-content:space-between;">
-                    <span><b>${s.name}</b> (${s.duration_min} мин)</span>
-                    <b>${s.price} ₸</b>
-                </div>
-                <button class="btn-danger-text" data-id="${s.id}">Удалить</button>
-            `;
-            // Удаление
-            div.querySelector('button')!.onclick = () => deleteService(s.id);
+
+            // Создаем структуру через элементы, а не через строку HTML
+            // Это защищает от XSS (внедрения скриптов через название)
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+
+            const info = document.createElement('span');
+            // Безопасная вставка текста
+            const bName = document.createElement('b');
+            bName.textContent = s.name;
+            info.appendChild(bName);
+            info.append(` (${s.duration_min} мин)`);
+
+            const price = document.createElement('b');
+            price.textContent = `${s.price} ₸`;
+
+            row.appendChild(info);
+            row.appendChild(price);
+
+            const btn = document.createElement('button');
+            btn.className = 'btn-danger-text';
+            btn.textContent = 'Удалить';
+            btn.onclick = () => deleteService(s.id);
+
+            div.appendChild(row);
+            div.appendChild(btn);
+
             srvList.appendChild(div);
         });
     } catch (e) {
