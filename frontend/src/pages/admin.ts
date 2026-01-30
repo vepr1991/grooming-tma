@@ -1,5 +1,5 @@
-import { apiFetch, BASE_URL } from '../core/api';
-import { initTelegram, Telegram } from '../core/tg';
+import { apiFetch, BASE_URL } from '../core/api'
+import { initTelegram, Telegram } from '../core/tg'
 
 initTelegram();
 
@@ -205,45 +205,87 @@ async function loadServices() {
         const services = await apiFetch('/me/services');
         srvList.innerHTML = '';
 
+        if (services.length === 0) {
+            srvList.innerHTML = '<div class="text-center text-text-secondary p-4 opacity-50">Список услуг пуст</div>';
+            return;
+        }
+
         services.forEach((s: any) => {
+            // Главный контейнер карточки
             const card = document.createElement('div');
-            card.className = 'bg-surface-dark/40 border border-border-dark/50 p-4 rounded-xl flex justify-between items-start shadow-sm hover:border-border-dark transition-colors';
+            card.className = 'bg-surface-dark/40 border border-border-dark/50 rounded-xl overflow-hidden transition-all';
 
-            // Left Content
+            // --- ВЕРХНЯЯ ЧАСТЬ (Всегда видна) ---
+            const header = document.createElement('div');
+            header.className = 'p-4 flex justify-between items-center cursor-pointer hover:bg-white/5 transition-colors';
+
+            // Левая часть (Название + Инфо)
             const infoDiv = document.createElement('div');
-            infoDiv.className = 'flex flex-col gap-1 pr-3 w-full';
+            infoDiv.className = 'flex flex-col gap-1';
 
-            // Title
             const nameSpan = document.createElement('span');
             nameSpan.className = 'text-white font-bold text-base leading-tight';
             nameSpan.textContent = s.name;
-            infoDiv.appendChild(nameSpan);
 
-            // Description (New)
-            if (s.description && s.description.trim() !== '') {
-                const descSpan = document.createElement('span');
-                descSpan.className = 'text-text-secondary/70 text-xs leading-snug line-clamp-2 mt-0.5';
-                descSpan.textContent = s.description;
-                infoDiv.appendChild(descSpan);
-            }
-
-            // Price & Duration
             const detailsSpan = document.createElement('span');
-            detailsSpan.className = 'text-primary text-sm font-bold mt-1';
+            detailsSpan.className = 'text-primary text-sm font-bold';
             detailsSpan.textContent = `${s.price} ₸ • ${s.duration_min} мин`;
+
+            infoDiv.appendChild(nameSpan);
             infoDiv.appendChild(detailsSpan);
 
-            // Delete Button
-            const delBtn = document.createElement('button');
-            delBtn.className = 'text-text-secondary/40 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 flex items-center shrink-0 self-center ml-2';
-            const delIcon = document.createElement('span');
-            delIcon.className = 'material-symbols-outlined';
-            delIcon.textContent = 'delete';
-            delBtn.appendChild(delIcon);
-            delBtn.onclick = () => deleteService(s.id);
+            // Правая часть (Кнопки)
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'flex items-center gap-2';
 
-            card.appendChild(infoDiv);
-            card.appendChild(delBtn);
+            // Кнопка удаления (всегда видна)
+            const delBtn = document.createElement('button');
+            delBtn.className = 'text-text-secondary/40 hover:text-red-400 p-2 rounded-full hover:bg-white/10 transition-colors z-10';
+            delBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
+            delBtn.onclick = (e) => {
+                e.stopPropagation(); // Чтобы клик не раскрывал карточку
+                deleteService(s.id);
+            };
+
+            // Стрелочка (если есть описание)
+            let chevron: HTMLElement | null = null;
+            if (s.description && s.description.trim() !== '') {
+                chevron = document.createElement('span');
+                chevron.className = 'material-symbols-outlined text-text-secondary/50 transition-transform duration-200';
+                chevron.textContent = 'expand_more';
+                actionsDiv.appendChild(chevron);
+            }
+
+            actionsDiv.appendChild(delBtn);
+            header.appendChild(infoDiv);
+            header.appendChild(actionsDiv);
+            card.appendChild(header);
+
+            // --- НИЖНЯЯ ЧАСТЬ (Описание, скрыто по умолчанию) ---
+            if (s.description && s.description.trim() !== '') {
+                const body = document.createElement('div');
+                body.className = 'hidden px-4 pb-4 pt-0 text-sm text-text-secondary/80 leading-relaxed border-t border-border-dark/30 mt-2';
+                body.textContent = s.description;
+                card.appendChild(body);
+
+                // Логика раскрытия по клику на шапку
+                header.onclick = () => {
+                    const isHidden = body.classList.contains('hidden');
+                    if (isHidden) {
+                        body.classList.remove('hidden'); // Показываем текст
+                        body.classList.add('block', 'animate-in', 'fade-in', 'slide-in-from-top-1');
+                        if (chevron) chevron.style.transform = 'rotate(180deg)'; // Крутим стрелку
+                    } else {
+                        body.classList.add('hidden'); // Скрываем
+                        body.classList.remove('block');
+                        if (chevron) chevron.style.transform = 'rotate(0deg)'; // Возвращаем стрелку
+                    }
+                };
+            } else {
+                // Если описания нет, делаем курсор обычным (не кликабельным)
+                header.classList.remove('cursor-pointer', 'hover:bg-white/5');
+            }
+
             srvList.appendChild(card);
         });
     } catch (e) {
