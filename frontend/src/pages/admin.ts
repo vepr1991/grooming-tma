@@ -9,24 +9,101 @@ const els = {
     address: document.getElementById('address') as HTMLInputElement,
     phone: document.getElementById('phone') as HTMLInputElement,
     desc: document.getElementById('description') as HTMLTextAreaElement,
+
+    // Новые кнопки
+    btnEditMode: document.getElementById('btn-edit-mode') as HTMLButtonElement,
+    editActions: document.getElementById('edit-actions') as HTMLElement,
+    btnCancel: document.getElementById('btn-cancel') as HTMLButtonElement,
     btnSave: document.getElementById('btn-save-profile') as HTMLButtonElement,
+
     avatarInput: document.getElementById('avatar-input') as HTMLInputElement,
     avatarImg: document.getElementById('avatar-img') as HTMLImageElement,
     avatarPlaceholder: document.getElementById('avatar-placeholder') as HTMLElement,
-    successToast: document.getElementById('profile-success-toast') as HTMLElement
+    successToast: document.getElementById('profile-success-toast') as HTMLElement,
+    avatarContainer: document.getElementById('avatar-container') as HTMLElement,
+    avatarHint: document.getElementById('avatar-hint') as HTMLElement,
+    avatarOverlay: document.getElementById('avatar-overlay') as HTMLElement
 };
 
 let currentAvatarUrl: string | null = null;
 
-// Функция показа уведомления внутри страницы
+// Хранилище для отмены изменений
+let originalData = {
+    name: '',
+    address: '',
+    phone: '',
+    desc: '',
+    avatarUrl: null as string | null
+};
+
+function toggleEditMode(enable: boolean) {
+    const inputs = [els.name, els.address, els.phone, els.desc];
+
+    if (enable) {
+        // --- ВХОД В РЕЖИМ РЕДАКТИРОВАНИЯ ---
+
+        // 1. Запоминаем текущие значения (чтобы можно было отменить)
+        originalData.name = els.name.value;
+        originalData.address = els.address.value;
+        originalData.phone = els.phone.value;
+        originalData.desc = els.desc.value;
+        originalData.avatarUrl = currentAvatarUrl;
+
+        // 2. Включаем поля
+        inputs.forEach(inp => inp.removeAttribute('readonly'));
+        els.name.focus();
+
+        // 3. Переключаем кнопки
+        els.btnEditMode.classList.add('hidden');
+        els.editActions.classList.remove('hidden');
+        els.editActions.classList.add('flex'); // Важно вернуть flex
+
+        // 4. Включаем аватарку
+        els.avatarContainer.classList.remove('pointer-events-none');
+        els.avatarHint.classList.remove('opacity-0');
+        els.avatarOverlay.classList.remove('hidden');
+
+    } else {
+        // --- ВЫХОД ИЗ РЕЖИМА (ПРОСМОТР) ---
+
+        // 1. Блокируем поля
+        inputs.forEach(inp => inp.setAttribute('readonly', 'true'));
+
+        // 2. Переключаем кнопки
+        els.editActions.classList.add('hidden');
+        els.editActions.classList.remove('flex');
+        els.btnEditMode.classList.remove('hidden');
+
+        // 3. Отключаем аватарку
+        els.avatarContainer.classList.add('pointer-events-none');
+        els.avatarHint.classList.add('opacity-0');
+        els.avatarOverlay.classList.add('hidden');
+    }
+}
+
+// Кнопка "Редактировать"
+els.btnEditMode.onclick = () => {
+    toggleEditMode(true);
+};
+
+// Кнопка "Отмена"
+els.btnCancel.onclick = () => {
+    // Возвращаем старые значения
+    els.name.value = originalData.name;
+    els.address.value = originalData.address;
+    els.phone.value = originalData.phone;
+    els.desc.value = originalData.desc;
+    if (originalData.avatarUrl) setAvatar(originalData.avatarUrl);
+
+    toggleEditMode(false);
+};
+
 function showSuccessToast() {
     if (els.successToast) {
         els.successToast.classList.remove('hidden');
         setTimeout(() => {
             els.successToast.classList.add('hidden');
         }, 3000);
-    } else {
-        Telegram.WebApp.showAlert('Сохранено!');
     }
 }
 
@@ -41,6 +118,8 @@ async function loadProfile() {
 
             if (data.profile.avatar_url) {
                 setAvatar(data.profile.avatar_url);
+                // Сохраняем в originalData на случай, если нажмут "Редактировать" сразу после загрузки
+                originalData.avatarUrl = data.profile.avatar_url;
             }
         }
     } catch (e) {
@@ -67,9 +146,7 @@ els.avatarInput.onchange = async () => {
     try {
         const response = await fetch(`${BASE_URL}/uploads/avatar`, {
             method: 'POST',
-            headers: {
-                'X-Tg-Init-Data': Telegram.WebApp.initData
-            },
+            headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData },
             body: formData
         });
 
@@ -78,7 +155,6 @@ els.avatarInput.onchange = async () => {
         const res = await response.json();
         if (res.avatar_url) {
             setAvatar(res.avatar_url);
-            // Можно показать мини-тост или просто оставить как есть
         }
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка загрузки фото');
@@ -87,9 +163,10 @@ els.avatarInput.onchange = async () => {
     }
 };
 
+// Кнопка "Сохранить"
 els.btnSave.onclick = async () => {
     els.btnSave.disabled = true;
-    const originalText = els.btnSave.innerHTML;
+    const originalContent = els.btnSave.innerHTML;
     els.btnSave.textContent = '';
     const spinner = document.createElement('span');
     spinner.className = 'material-symbols-outlined animate-spin text-[20px]';
@@ -108,15 +185,18 @@ els.btnSave.onclick = async () => {
             })
         });
         showSuccessToast();
+        toggleEditMode(false); // Выходим из режима редактирования
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка сохранения');
     } finally {
-        els.btnSave.innerHTML = originalText;
+        els.btnSave.innerHTML = originalContent;
         els.btnSave.disabled = false;
     }
 };
 
-// --- SERVICES LOGIC ---
+// ... (Далее весь остальной код: Services, Schedule, Appointments - без изменений) ...
+// Скопируйте его из предыдущего файла, он не менялся.
+
 const srvList = document.getElementById('services-list')!;
 const btnAddSrv = document.getElementById('btn-add-service') as HTMLButtonElement;
 
@@ -389,7 +469,6 @@ btnSaveSchedule.onclick = async () => {
     spinner.className = 'material-symbols-outlined animate-spin mr-2 text-[20px]';
     spinner.textContent = 'progress_activity';
     btnSaveSchedule.appendChild(spinner);
-    // btnSaveSchedule.appendChild(document.createTextNode(' Сохранение...'));
 
     const payload: any[] = [];
     const slotMin = parseInt(globalSlotDuration.value) || 60;

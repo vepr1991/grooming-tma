@@ -40,12 +40,24 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Стили для табов */
+        /* Табы */
         .tab-btn { border-bottom: 3px solid transparent; color: #8eadcc; }
         .tab-btn.active { border-bottom-color: #3899fa; color: white; }
-
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+
+        /* Стили для полей в режиме просмотра (readonly) */
+        /* Убираем рамки и делаем фон прозрачным для эффекта "просто текст" */
+        .group:has(input[readonly]) div,
+        .group:has(textarea[readonly]) div {
+            background-color: transparent;
+            border-color: rgba(47, 77, 106, 0.2); /* Очень бледная рамка или transparent */
+        }
+        input[readonly], textarea[readonly] {
+            cursor: default;
+            color: #ffffff;
+        }
+        /* Скрываем иконки редактирования если нужно, или делаем их бледнее */
     </style>
 </head>
 <body class="bg-background-dark font-display text-white antialiased selection:bg-primary/30">
@@ -53,7 +65,8 @@
 
         <div class="sticky top-0 z-20 bg-background-dark/95 backdrop-blur-sm border-b border-border-dark/30">
             <div class="flex items-center p-4 pb-2 justify-between">
-                <div class="size-12"></div> <h2 id="header-title" class="text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Данные салона</h2>
+                <div class="size-12"></div>
+                <h2 id="header-title" class="text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Данные салона</h2>
                 <div class="size-12"></div>
             </div>
 
@@ -78,6 +91,7 @@
         <main class="flex-1 w-full">
 
             <div id="tab-profile" class="tab-content active">
+
                 <div id="profile-success-toast" class="px-4 pt-4 hidden transition-all duration-300">
                     <div class="bg-success/15 border border-success/30 rounded-xl p-3 flex items-center gap-3">
                         <span class="material-symbols-outlined text-success text-[20px]">check_circle</span>
@@ -86,17 +100,17 @@
                 </div>
 
                 <div class="flex p-6 py-6 justify-center">
-                    <div class="relative group cursor-pointer" onclick="document.getElementById('avatar-input').click()">
+                    <div id="avatar-container" class="relative group cursor-pointer pointer-events-none" onclick="document.getElementById('avatar-input').click()">
                         <div class="relative">
                             <div class="w-32 h-32 rounded-full ring-4 ring-surface-dark shadow-xl overflow-hidden bg-surface-dark flex items-center justify-center">
                                 <img id="avatar-img" src="" class="w-full h-full object-cover hidden">
                                 <span id="avatar-placeholder" class="material-symbols-outlined text-5xl text-text-secondary/50">storefront</span>
                             </div>
-                            <div class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div id="avatar-overlay" class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden">
                                 <span class="material-symbols-outlined text-white text-3xl">photo_camera</span>
                             </div>
                         </div>
-                        <div class="flex flex-col items-center justify-center mt-3">
+                        <div id="avatar-hint" class="flex flex-col items-center justify-center mt-3 opacity-0 transition-opacity">
                              <p class="text-primary text-sm font-bold">Изменить логотип</p>
                         </div>
                         <input type="file" id="avatar-input" accept="image/*" class="hidden">
@@ -107,14 +121,14 @@
                     <label class="flex flex-col w-full group">
                         <p class="text-text-secondary/60 text-sm font-semibold leading-normal pb-2 ml-1 group-focus-within:text-primary transition-colors">Название салона</p>
                         <div class="flex w-full min-w-0 rounded-xl border border-border-dark/50 bg-surface-dark/40 focus-within:bg-surface-dark focus-within:border-primary/60 transition-all h-14 items-center px-[15px] shadow-sm">
-                            <input type="text" id="salon-name" placeholder="Введите название" class="bg-transparent border-none text-white w-full h-full focus:ring-0 placeholder-white/20">
+                            <input type="text" id="salon-name" readonly placeholder="Не указано" class="bg-transparent border-none text-white w-full h-full focus:ring-0 placeholder-white/20">
                         </div>
                     </label>
 
                     <label class="flex flex-col w-full group">
                         <p class="text-text-secondary/60 text-sm font-semibold leading-normal pb-2 ml-1 group-focus-within:text-primary transition-colors">Адрес</p>
                         <div class="relative flex w-full items-center rounded-xl border border-border-dark/50 bg-surface-dark/40 focus-within:bg-surface-dark focus-within:border-primary/60 transition-all h-14 px-[15px] pr-12 shadow-sm">
-                            <input type="text" id="address" placeholder="Город, улица, дом" class="bg-transparent border-none text-white w-full h-full focus:ring-0 placeholder-white/20">
+                            <input type="text" id="address" readonly placeholder="Не указано" class="bg-transparent border-none text-white w-full h-full focus:ring-0 placeholder-white/20">
                             <div class="absolute right-0 h-full flex items-center justify-center pr-4 text-text-secondary">
                                 <span class="material-symbols-outlined">location_on</span>
                             </div>
@@ -124,7 +138,7 @@
                     <label class="flex flex-col w-full group">
                         <p class="text-text-secondary/60 text-sm font-semibold leading-normal pb-2 ml-1 group-focus-within:text-primary transition-colors">Номер телефона</p>
                         <div class="relative flex w-full items-center rounded-xl border border-border-dark/50 bg-surface-dark/40 focus-within:bg-surface-dark focus-within:border-primary/60 transition-all h-14 px-[15px] pr-12 shadow-sm">
-                            <input type="tel" id="phone" placeholder="+7 (___) ___-__-__" class="bg-transparent border-none text-white w-full h-full focus:ring-0 placeholder-white/20">
+                            <input type="tel" id="phone" readonly placeholder="Не указано" class="bg-transparent border-none text-white w-full h-full focus:ring-0 placeholder-white/20">
                             <div class="absolute right-0 h-full flex items-center justify-center pr-4 text-text-secondary">
                                 <span class="material-symbols-outlined">call</span>
                             </div>
@@ -134,25 +148,27 @@
                     <label class="flex flex-col w-full group">
                         <p class="text-text-secondary/60 text-sm font-semibold leading-normal pb-2 ml-1 group-focus-within:text-primary transition-colors">О салоне</p>
                         <div class="flex w-full min-w-0 rounded-xl border border-border-dark/50 bg-surface-dark/40 focus-within:bg-surface-dark focus-within:border-primary/60 transition-all min-h-[120px] p-[15px] shadow-sm">
-                            <textarea id="description" rows="4" placeholder="Расскажите о ваших услугах и опыте..." class="bg-transparent border-none text-white w-full h-full focus:ring-0 resize-none placeholder-white/20 leading-relaxed"></textarea>
+                            <textarea id="description" readonly rows="4" placeholder="Не указано" class="bg-transparent border-none text-white w-full h-full focus:ring-0 resize-none placeholder-white/20 leading-relaxed"></textarea>
                         </div>
                     </label>
                 </div>
 
                 <div class="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-[#101a23] via-[#101a23]/95 to-transparent z-30 pb-6 pt-8 max-w-md mx-auto left-0 right-0">
                     <button id="btn-save-profile" class="w-full flex items-center justify-center gap-2 h-14 rounded-xl text-white font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all bg-primary hover:bg-primary/90">
-                        Сохранить изменения
+                        Редактировать профиль
                     </button>
                 </div>
             </div>
 
             <div id="tab-services" class="tab-content p-4 space-y-4">
+                <h3 class="text-lg font-bold">Мои услуги</h3>
                 <div id="services-list" class="space-y-3"></div>
-                <div class="bg-surface-dark/40 p-4 rounded-xl border border-border-dark/50 space-y-3 mt-6">
-                    <h4 class="font-bold text-sm text-text-secondary uppercase tracking-wider">Новая услуга</h4>
+
+                <div class="bg-surface-dark p-4 rounded-xl border border-border-dark/40 space-y-3 mt-6">
+                    <h4 class="font-bold text-sm text-text-secondary uppercase tracking-wider">Добавить услугу</h4>
                     <input type="text" id="new-srv-name" placeholder="Название" class="w-full bg-background-dark border border-border-dark/60 rounded-lg text-white px-3 py-3 focus:ring-1 focus:ring-primary focus:border-primary">
                     <div class="flex gap-3">
-                        <input type="number" id="new-srv-price" placeholder="Цена (₸)" class="w-1/2 bg-background-dark border border-border-dark/60 rounded-lg text-white px-3 py-3 focus:ring-1 focus:ring-primary focus:border-primary">
+                        <input type="number" id="new-srv-price" placeholder="Цена" class="w-1/2 bg-background-dark border border-border-dark/60 rounded-lg text-white px-3 py-3 focus:ring-1 focus:ring-primary focus:border-primary">
                         <input type="number" id="new-srv-dur" placeholder="Мин" value="60" class="w-1/2 bg-background-dark border border-border-dark/60 rounded-lg text-white px-3 py-3 focus:ring-1 focus:ring-primary focus:border-primary">
                     </div>
                     <button id="btn-add-service" class="w-full bg-white/5 hover:bg-white/10 text-primary h-12 rounded-lg font-bold transition-all border border-primary/30 mt-2">
@@ -164,7 +180,7 @@
             <div id="tab-schedule" class="tab-content">
                 <div id="schedule-container" class="divide-y divide-border-dark/30"></div>
                 <div class="p-4 pt-6">
-                    <div class="bg-surface-dark/40 rounded-xl border border-border-dark/50 p-4">
+                    <div class="bg-surface-dark rounded-xl border border-border-dark/40 p-4">
                         <label class="block text-white font-medium mb-3 flex items-center gap-2 text-sm">
                             <span class="material-symbols-outlined text-text-secondary text-[20px]">schedule</span>
                             Шаг записи (минут)
@@ -198,17 +214,13 @@
     <script type="module" src="./src/pages/admin.ts"></script>
     <script>
         window.switchTab = (tabName) => {
-            // Скрываем все табы
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            // Деактивируем кнопки
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active', 'border-b-primary', 'text-white'));
             document.querySelectorAll('.tab-btn p').forEach(el => el.classList.remove('text-white'));
 
-            // Показываем нужный таб
             const tab = document.getElementById(`tab-${tabName}`);
             if (tab) tab.classList.add('active');
 
-            // Активируем кнопку (ищем по onclick аттрибуту, так как event.currentTarget может не сработать при программном вызове)
             const btns = document.querySelectorAll('.tab-btn');
             btns.forEach(btn => {
                 if(btn.getAttribute('onclick').includes(tabName)) {
@@ -216,7 +228,6 @@
                 }
             });
 
-            // Меняем заголовок
             const titles = {
                 'profile': 'Данные салона',
                 'services': 'Список услуг',
