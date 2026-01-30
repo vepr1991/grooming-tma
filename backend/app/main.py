@@ -1,4 +1,4 @@
-from typing import List  # <--- ВОТ ЭТО БЫЛО ПРОПУЩЕНО
+from typing import List
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta, timezone, time
@@ -12,7 +12,7 @@ from .utils import notify_master
 
 app = FastAPI()
 
-# Разрешаем CORS, чтобы Фронтенд мог стучаться к Бэкенду с другого домена
+# Разрешаем CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ВАЖНО: Создаем роутер БЕЗ префикса (чтобы работало и локально с прокси, и на проде) ---
+# Создаем роутер (маршруты регистрируем на него)
 api_router = APIRouter()
 
 
@@ -137,7 +137,7 @@ def update_profile(update: MasterUpdate, user=Depends(validate_telegram_data)):
     return {"status": "ok"}
 
 
-# --- ГРАФИК РАБОТЫ (НОВОЕ) ---
+# --- ГРАФИК РАБОТЫ ---
 
 @api_router.get("/me/working-hours")
 def get_working_hours(user=Depends(validate_telegram_data)):
@@ -284,5 +284,7 @@ async def upload_avatar(file: UploadFile = File(...), user=Depends(validate_tele
         raise HTTPException(500, "Failed to upload image")
 
 
-# --- ПОДКЛЮЧАЕМ РОУТЕР К APP ---
-app.include_router(api_router)
+# --- ВАЖНО: Финальный штрих ---
+# Мы подключаем роутер с префиксом /api.
+# Теперь все ручки доступны по адресу /api/..., как того и ждет фронтенд.
+app.include_router(api_router, prefix="/api")
