@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>Админка Мастера</title>
+    <title>Профиль мастера</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://fonts.googleapis.com" rel="preconnect"/>
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -17,160 +17,176 @@
                 extend: {
                     colors: {
                         "primary": "#3899fa",
-                        "background-dark": "#101a23", 
-                        "surface-dark": "#15202b", 
+                        "background-dark": "#101a23",
+                        "surface-dark": "#182635",
                         "border-dark": "#2f4d6a",
                         "text-secondary": "#8eadcc",
+                        "success": "#31b545"
                     },
                     fontFamily: {
                         "display": ["Plus Jakarta Sans", "sans-serif"]
-                    }
+                    },
+                    borderRadius: { "DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px" },
                 },
             },
         }
     </script>
     <style>
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #2f4d6a; border-radius: 3px; }
+        :root {
+            --tg-theme-button-color: #3899fa;
+            --tg-theme-button-text-color: #ffffff;
+        }
         body { min-height: 100dvh; background-color: #101a23; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Стили для табов */
+        .tab-btn { border-bottom: 3px solid transparent; color: #8eadcc; }
+        .tab-btn.active { border-bottom-color: #3899fa; color: white; }
+
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .tab-btn.active { color: #3899fa; border-bottom: 2px solid #3899fa; }
     </style>
 </head>
-<body class="bg-background-dark text-white font-display selection:bg-primary/30">
-    <div class="relative flex h-full min-h-screen w-full flex-col max-w-md mx-auto bg-background-dark shadow-2xl border-x border-border-dark/20">
-        
-        <header class="sticky top-0 z-20 bg-background-dark/95 backdrop-blur-md border-b border-border-dark/30">
-            <div class="flex items-center p-4 pb-0 justify-between">
-                <div class="size-10"></div> 
-                <h2 id="header-title" class="text-white text-lg font-bold flex-1 text-center pr-2">Настройка профиля</h2>
-                <div class="size-10"></div>
+<body class="bg-background-dark font-display text-white antialiased selection:bg-primary/30">
+    <div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden pb-24 max-w-md mx-auto border-x border-border-dark/20 shadow-2xl">
+
+        <div class="sticky top-0 z-20 bg-background-dark/95 backdrop-blur-sm border-b border-border-dark/30">
+            <div class="flex items-center p-4 pb-2 justify-between">
+                <div class="size-12"></div> <h2 id="header-title" class="text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Данные салона</h2>
+                <div class="size-12"></div>
             </div>
 
-            <div class="flex justify-around mt-2 border-b border-border-dark/10">
-                <button class="tab-btn active px-4 py-2 text-sm font-bold transition-all" onclick="switchTab('profile')">Профиль</button>
-                <button class="tab-btn px-4 py-2 text-sm font-bold transition-all" onclick="switchTab('services')">Услуги</button>
-                <button class="tab-btn px-4 py-2 text-sm font-bold transition-all" onclick="switchTab('schedule')">График</button>
-                <button class="tab-btn px-4 py-2 text-sm font-bold transition-all" onclick="switchTab('appointments')">Записи</button>
+            <div class="pb-0">
+                <div class="flex px-4 justify-between gap-2 overflow-x-auto no-scrollbar">
+                    <button onclick="switchTab('profile')" class="tab-btn active flex flex-col items-center justify-center pb-3 pt-2 flex-1 min-w-[80px] transition-colors">
+                        <p class="text-inherit text-sm font-bold leading-normal tracking-[0.015em] whitespace-nowrap">Профиль</p>
+                    </button>
+                    <button onclick="switchTab('services')" class="tab-btn flex flex-col items-center justify-center pb-3 pt-2 flex-1 min-w-[80px] transition-colors">
+                        <p class="text-inherit text-sm font-bold leading-normal tracking-[0.015em] whitespace-nowrap">Услуги</p>
+                    </button>
+                    <button onclick="switchTab('schedule')" class="tab-btn flex flex-col items-center justify-center pb-3 pt-2 flex-1 min-w-[80px] transition-colors">
+                        <p class="text-inherit text-sm font-bold leading-normal tracking-[0.015em] whitespace-nowrap">График</p>
+                    </button>
+                    <button onclick="switchTab('appointments')" class="tab-btn flex flex-col items-center justify-center pb-3 pt-2 flex-1 min-w-[80px] transition-colors">
+                        <p class="text-inherit text-sm font-bold leading-normal tracking-[0.015em] whitespace-nowrap">Записи</p>
+                    </button>
+                </div>
             </div>
-        </header>
+        </div>
 
-        <main class="flex-1 overflow-y-auto pb-24">
-            
-            <div id="tab-profile" class="tab-content active p-4 pb-20 space-y-5">
-                <div class="flex flex-col items-center justify-center mt-2">
+        <main class="flex-1 w-full">
+
+            <div id="tab-profile" class="tab-content active">
+                <div id="profile-success-toast" class="px-4 pt-4 hidden transition-all duration-300">
+                    <div class="bg-success/15 border border-success/30 rounded-xl p-3 flex items-center gap-3">
+                        <span class="material-symbols-outlined text-success text-[20px]">check_circle</span>
+                        <p class="text-success text-sm font-semibold">Изменения сохранены</p>
+                    </div>
+                </div>
+
+                <div class="flex p-6 py-6 justify-center">
                     <div class="relative group cursor-pointer" onclick="document.getElementById('avatar-input').click()">
-                        <div class="w-28 h-28 rounded-full bg-surface-dark border-2 border-border-dark flex items-center justify-center overflow-hidden shadow-lg relative">
-                            <img id="avatar-img" src="" alt="Avatar" class="w-full h-full object-cover hidden">
-                            <span id="avatar-placeholder" class="material-symbols-outlined text-4xl text-text-secondary">storefront</span>
-                            <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div class="relative">
+                            <div class="w-32 h-32 rounded-full ring-4 ring-surface-dark shadow-xl overflow-hidden bg-surface-dark flex items-center justify-center">
+                                <img id="avatar-img" src="" class="w-full h-full object-cover hidden">
+                                <span id="avatar-placeholder" class="material-symbols-outlined text-5xl text-text-secondary/50">storefront</span>
+                            </div>
+                            <div class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                 <span class="material-symbols-outlined text-white text-3xl">photo_camera</span>
                             </div>
                         </div>
-                        <div class="absolute bottom-0 right-0 bg-primary text-white rounded-full p-1.5 border-4 border-background-dark flex items-center shadow-sm">
-                            <span class="material-symbols-outlined text-[18px]">edit</span>
+                        <div class="flex flex-col items-center justify-center mt-3">
+                             <p class="text-primary text-sm font-bold">Изменить логотип</p>
                         </div>
-                    </div>
-                    <p class="text-text-secondary text-xs mt-3">Нажмите, чтобы загрузить логотип</p>
-                    <input type="file" id="avatar-input" accept="image/*" class="hidden">
-                </div>
-
-                <div class="space-y-4">
-                    <div class="space-y-1">
-                        <label class="text-xs text-text-secondary uppercase font-bold ml-1">Название салона</label>
-                        <div class="relative">
-                            <span class="material-symbols-outlined absolute left-3 top-3.5 text-text-secondary">badge</span>
-                            <input type="text" id="salon-name" placeholder="Мой Груминг" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50 transition-all">
-                        </div>
-                    </div>
-
-                    <div class="space-y-1">
-                        <label class="text-xs text-text-secondary uppercase font-bold ml-1">Телефон</label>
-                        <div class="relative">
-                            <span class="material-symbols-outlined absolute left-3 top-3.5 text-text-secondary">call</span>
-                            <input type="tel" id="phone" placeholder="+7 (700) 000-00-00" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50 transition-all">
-                        </div>
-                    </div>
-
-                    <div class="space-y-1">
-                        <label class="text-xs text-text-secondary uppercase font-bold ml-1">Адрес</label>
-                        <div class="relative">
-                            <span class="material-symbols-outlined absolute left-3 top-3.5 text-text-secondary">location_on</span>
-                            <input type="text" id="address" placeholder="ул. Абая, 10" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50 transition-all">
-                        </div>
-                    </div>
-
-                    <div class="space-y-1">
-                        <label class="text-xs text-text-secondary uppercase font-bold ml-1">Описание</label>
-                        <textarea id="description" placeholder="Расскажите о ваших услугах..." rows="3" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50 transition-all"></textarea>
+                        <input type="file" id="avatar-input" accept="image/*" class="hidden">
                     </div>
                 </div>
 
-                <button id="btn-save-profile" class="w-full bg-primary hover:bg-primary/90 active:scale-[0.98] text-white h-12 rounded-xl font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 mt-2">
-                    <span class="material-symbols-outlined">save</span>
-                    Сохранить изменения
-                </button>
+                <div class="px-4 flex flex-col gap-5 pb-24">
+                    <label class="flex flex-col w-full group">
+                        <p class="text-text-secondary/60 text-sm font-semibold leading-normal pb-2 ml-1 group-focus-within:text-primary transition-colors">Название салона</p>
+                        <div class="flex w-full min-w-0 rounded-xl border border-border-dark/50 bg-surface-dark/40 focus-within:bg-surface-dark focus-within:border-primary/60 transition-all h-14 items-center px-[15px] shadow-sm">
+                            <input type="text" id="salon-name" placeholder="Введите название" class="bg-transparent border-none text-white w-full h-full focus:ring-0 placeholder-white/20">
+                        </div>
+                    </label>
+
+                    <label class="flex flex-col w-full group">
+                        <p class="text-text-secondary/60 text-sm font-semibold leading-normal pb-2 ml-1 group-focus-within:text-primary transition-colors">Адрес</p>
+                        <div class="relative flex w-full items-center rounded-xl border border-border-dark/50 bg-surface-dark/40 focus-within:bg-surface-dark focus-within:border-primary/60 transition-all h-14 px-[15px] pr-12 shadow-sm">
+                            <input type="text" id="address" placeholder="Город, улица, дом" class="bg-transparent border-none text-white w-full h-full focus:ring-0 placeholder-white/20">
+                            <div class="absolute right-0 h-full flex items-center justify-center pr-4 text-text-secondary">
+                                <span class="material-symbols-outlined">location_on</span>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="flex flex-col w-full group">
+                        <p class="text-text-secondary/60 text-sm font-semibold leading-normal pb-2 ml-1 group-focus-within:text-primary transition-colors">Номер телефона</p>
+                        <div class="relative flex w-full items-center rounded-xl border border-border-dark/50 bg-surface-dark/40 focus-within:bg-surface-dark focus-within:border-primary/60 transition-all h-14 px-[15px] pr-12 shadow-sm">
+                            <input type="tel" id="phone" placeholder="+7 (___) ___-__-__" class="bg-transparent border-none text-white w-full h-full focus:ring-0 placeholder-white/20">
+                            <div class="absolute right-0 h-full flex items-center justify-center pr-4 text-text-secondary">
+                                <span class="material-symbols-outlined">call</span>
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="flex flex-col w-full group">
+                        <p class="text-text-secondary/60 text-sm font-semibold leading-normal pb-2 ml-1 group-focus-within:text-primary transition-colors">О салоне</p>
+                        <div class="flex w-full min-w-0 rounded-xl border border-border-dark/50 bg-surface-dark/40 focus-within:bg-surface-dark focus-within:border-primary/60 transition-all min-h-[120px] p-[15px] shadow-sm">
+                            <textarea id="description" rows="4" placeholder="Расскажите о ваших услугах и опыте..." class="bg-transparent border-none text-white w-full h-full focus:ring-0 resize-none placeholder-white/20 leading-relaxed"></textarea>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-[#101a23] via-[#101a23]/95 to-transparent z-30 pb-6 pt-8 max-w-md mx-auto left-0 right-0">
+                    <button id="btn-save-profile" class="w-full flex items-center justify-center gap-2 h-14 rounded-xl text-white font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all bg-primary hover:bg-primary/90">
+                        Сохранить изменения
+                    </button>
+                </div>
             </div>
 
             <div id="tab-services" class="tab-content p-4 space-y-4">
-                <h3 class="text-lg font-bold">Мои услуги</h3>
                 <div id="services-list" class="space-y-3"></div>
-                
-                <div class="bg-surface-dark p-4 rounded-xl border border-border-dark/40 space-y-3 mt-6">
-                    <h4 class="font-bold text-sm text-text-secondary uppercase tracking-wider">Добавить услугу</h4>
-                    <input type="text" id="new-srv-name" placeholder="Название (напр. Стрижка)" class="w-full bg-background-dark border border-border-dark rounded-lg text-white px-3 py-2 focus:ring-primary focus:border-primary">
+                <div class="bg-surface-dark/40 p-4 rounded-xl border border-border-dark/50 space-y-3 mt-6">
+                    <h4 class="font-bold text-sm text-text-secondary uppercase tracking-wider">Новая услуга</h4>
+                    <input type="text" id="new-srv-name" placeholder="Название" class="w-full bg-background-dark border border-border-dark/60 rounded-lg text-white px-3 py-3 focus:ring-1 focus:ring-primary focus:border-primary">
                     <div class="flex gap-3">
-                        <input type="number" id="new-srv-price" placeholder="Цена" class="w-1/2 bg-background-dark border border-border-dark rounded-lg text-white px-3 py-2 focus:ring-primary focus:border-primary">
-                        <input type="number" id="new-srv-dur" placeholder="Мин" value="60" class="w-1/2 bg-background-dark border border-border-dark rounded-lg text-white px-3 py-2 focus:ring-primary focus:border-primary">
+                        <input type="number" id="new-srv-price" placeholder="Цена (₸)" class="w-1/2 bg-background-dark border border-border-dark/60 rounded-lg text-white px-3 py-3 focus:ring-1 focus:ring-primary focus:border-primary">
+                        <input type="number" id="new-srv-dur" placeholder="Мин" value="60" class="w-1/2 bg-background-dark border border-border-dark/60 rounded-lg text-white px-3 py-3 focus:ring-1 focus:ring-primary focus:border-primary">
                     </div>
-                    <button id="btn-add-service" class="w-full bg-primary/20 hover:bg-primary/30 text-primary h-11 rounded-lg font-bold transition-all border border-primary/30">
+                    <button id="btn-add-service" class="w-full bg-white/5 hover:bg-white/10 text-primary h-12 rounded-lg font-bold transition-all border border-primary/30 mt-2">
                         Добавить
                     </button>
                 </div>
             </div>
 
             <div id="tab-schedule" class="tab-content">
-                <div class="px-4 pt-6 pb-2">
-                    <h3 class="text-lg font-bold">Рабочие часы</h3>
-                    <p class="text-text-secondary text-sm">Настройте доступность на неделю.</p>
-                </div>
-                
                 <div id="schedule-container" class="divide-y divide-border-dark/30"></div>
-                
-                <div class="px-4 py-6">
-                    <div class="bg-surface-dark rounded-xl border border-border-dark/40 p-4">
-                        <label class="block text-white font-medium mb-3 flex items-center gap-2">
-                            <span class="material-symbols-outlined text-text-secondary">schedule</span>
-                            Длительность слота
+                <div class="p-4 pt-6">
+                    <div class="bg-surface-dark/40 rounded-xl border border-border-dark/50 p-4">
+                        <label class="block text-white font-medium mb-3 flex items-center gap-2 text-sm">
+                            <span class="material-symbols-outlined text-text-secondary text-[20px]">schedule</span>
+                            Шаг записи (минут)
                         </label>
-                        <div class="relative">
-                            <select id="global-slot-duration" class="w-full bg-background-dark border border-border-dark text-white rounded-lg h-12 pl-4 pr-10 appearance-none focus:ring-primary focus:border-primary cursor-pointer">
-                                <option value="15">15 минут</option>
-                                <option value="30" selected>30 минут</option>
-                                <option value="45">45 минут</option>
-                                <option value="60">60 минут</option>
-                                <option value="90">90 минут</option>
-                            </select>
-                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-text-secondary">
-                                <span class="material-symbols-outlined">expand_more</span>
-                            </div>
-                        </div>
-                        <p class="text-text-secondary text-xs mt-2">Длительность каждого окна записи для клиентов.</p>
+                        <select id="global-slot-duration" class="w-full bg-background-dark border border-border-dark text-white rounded-lg h-12 pl-4 pr-10 focus:ring-primary focus:border-primary">
+                            <option value="15">15 минут</option>
+                            <option value="30" selected>30 минут</option>
+                            <option value="45">45 минут</option>
+                            <option value="60">60 минут</option>
+                        </select>
                     </div>
                 </div>
-
-                <div class="fixed bottom-0 left-0 right-0 p-4 bg-background-dark/95 backdrop-blur-xl border-t border-border-dark/30 z-30 max-w-md mx-auto">
-                    <button id="btn-save-schedule" class="w-full bg-primary hover:bg-primary/90 text-white h-12 rounded-xl font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
-                        <span class="material-symbols-outlined">save</span>
+                <div class="p-4 pb-24">
+                     <button id="btn-save-schedule" class="w-full flex items-center justify-center gap-2 h-14 rounded-xl text-white font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all bg-primary hover:bg-primary/90">
                         Сохранить график
                     </button>
                 </div>
             </div>
 
-            <div id="tab-appointments" class="tab-content p-4 space-y-4">
+            <div id="tab-appointments" class="tab-content p-4 pb-24 space-y-4">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-bold">Предстоящие записи</h3>
+                    <h3 class="text-base font-bold text-white">Ближайшие записи</h3>
                     <button onclick="loadAppointments()" class="text-primary text-sm font-bold hover:text-white transition-colors">Обновить</button>
                 </div>
                 <div id="appointments-list" class="space-y-3"></div>
@@ -182,30 +198,34 @@
     <script type="module" src="./src/pages/admin.ts"></script>
     <script>
         window.switchTab = (tabName) => {
+            // Скрываем все табы
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            // Деактивируем кнопки
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active', 'border-b-primary', 'text-white'));
+            document.querySelectorAll('.tab-btn p').forEach(el => el.classList.remove('text-white'));
 
+            // Показываем нужный таб
             const tab = document.getElementById(`tab-${tabName}`);
             if (tab) tab.classList.add('active');
-            
-            if (event && event.currentTarget) {
-                event.currentTarget.classList.add('active');
-            } else {
-                const btns = document.querySelectorAll('.tab-btn');
-                btns.forEach(b => {
-                    if(b.getAttribute('onclick').includes(tabName)) b.classList.add('active');
-                });
-            }
 
+            // Активируем кнопку (ищем по onclick аттрибуту, так как event.currentTarget может не сработать при программном вызове)
+            const btns = document.querySelectorAll('.tab-btn');
+            btns.forEach(btn => {
+                if(btn.getAttribute('onclick').includes(tabName)) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Меняем заголовок
             const titles = {
-                'profile': 'Настройка профиля',
-                'services': 'Управление услугами',
-                'schedule': 'Настройка графика',
-                'appointments': 'Список записей'
+                'profile': 'Данные салона',
+                'services': 'Список услуг',
+                'schedule': 'График работы',
+                'appointments': 'Журнал записей'
             };
             const titleEl = document.getElementById('header-title');
             if(titleEl) titleEl.innerText = titles[tabName] || 'Админка';
-            
+
             if (tabName === 'appointments' && window.loadAppointments) {
                 window.loadAppointments();
             }

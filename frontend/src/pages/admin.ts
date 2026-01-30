@@ -1,4 +1,3 @@
-// ВАЖНО: Импортируем BASE_URL
 import { apiFetch, BASE_URL } from '../core/api';
 import { initTelegram, Telegram } from '../core/tg';
 
@@ -13,10 +12,23 @@ const els = {
     btnSave: document.getElementById('btn-save-profile') as HTMLButtonElement,
     avatarInput: document.getElementById('avatar-input') as HTMLInputElement,
     avatarImg: document.getElementById('avatar-img') as HTMLImageElement,
-    avatarPlaceholder: document.getElementById('avatar-placeholder') as HTMLElement
+    avatarPlaceholder: document.getElementById('avatar-placeholder') as HTMLElement,
+    successToast: document.getElementById('profile-success-toast') as HTMLElement
 };
 
 let currentAvatarUrl: string | null = null;
+
+// Функция показа уведомления внутри страницы
+function showSuccessToast() {
+    if (els.successToast) {
+        els.successToast.classList.remove('hidden');
+        setTimeout(() => {
+            els.successToast.classList.add('hidden');
+        }, 3000);
+    } else {
+        Telegram.WebApp.showAlert('Сохранено!');
+    }
+}
 
 async function loadProfile() {
     try {
@@ -26,7 +38,7 @@ async function loadProfile() {
             els.address.value = data.profile.address || '';
             els.phone.value = data.profile.phone || '';
             els.desc.value = data.profile.description || '';
-            
+
             if (data.profile.avatar_url) {
                 setAvatar(data.profile.avatar_url);
             }
@@ -51,30 +63,25 @@ els.avatarInput.onchange = async () => {
 
     const formData = new FormData();
     formData.append('file', file);
-    
+
     try {
-        // ИСПРАВЛЕНИЕ: Используем динамический BASE_URL
-        // На Render это будет https://backend.com/uploads/avatar
-        // Локально это будет /api/uploads/avatar
         const response = await fetch(`${BASE_URL}/uploads/avatar`, {
             method: 'POST',
-            headers: { 
-                'X-Tg-Init-Data': Telegram.WebApp.initData 
-                // Content-Type не ставим вручную для FormData!
+            headers: {
+                'X-Tg-Init-Data': Telegram.WebApp.initData
             },
             body: formData
         });
 
         if (!response.ok) throw new Error('Upload failed');
-        
+
         const res = await response.json();
         if (res.avatar_url) {
             setAvatar(res.avatar_url);
-            Telegram.WebApp.showAlert('Фото загружено!');
+            // Можно показать мини-тост или просто оставить как есть
         }
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка загрузки фото');
-        console.error(e);
     } finally {
         els.avatarImg.style.opacity = '1';
     }
@@ -85,10 +92,9 @@ els.btnSave.onclick = async () => {
     const originalText = els.btnSave.innerHTML;
     els.btnSave.textContent = '';
     const spinner = document.createElement('span');
-    spinner.className = 'material-symbols-outlined animate-spin mr-2 align-middle';
+    spinner.className = 'material-symbols-outlined animate-spin text-[20px]';
     spinner.textContent = 'progress_activity';
     els.btnSave.appendChild(spinner);
-    els.btnSave.appendChild(document.createTextNode(' Сохранение...'));
 
     try {
         await apiFetch('/me/profile', {
@@ -101,7 +107,7 @@ els.btnSave.onclick = async () => {
                 avatar_url: currentAvatarUrl
             })
         });
-        Telegram.WebApp.showAlert('Профиль успешно сохранен!');
+        showSuccessToast();
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка сохранения');
     } finally {
@@ -118,17 +124,17 @@ async function loadServices() {
     try {
         const services = await apiFetch('/me/services');
         srvList.innerHTML = '';
-        
+
         services.forEach((s: any) => {
             const div = document.createElement('div');
-            div.className = 'bg-surface-dark p-4 rounded-xl border border-border-dark/40 flex justify-between items-center shadow-sm';
+            div.className = 'bg-surface-dark/40 p-4 rounded-xl border border-border-dark/50 flex justify-between items-center shadow-sm';
 
             const leftDiv = document.createElement('div');
             const nameDiv = document.createElement('div');
             nameDiv.className = 'font-bold text-white text-base';
             nameDiv.textContent = s.name;
             const durDiv = document.createElement('div');
-            durDiv.className = 'text-text-secondary text-sm flex items-center gap-1';
+            durDiv.className = 'text-text-secondary text-sm flex items-center gap-1 mt-1';
             const icon = document.createElement('span');
             icon.className = 'material-symbols-outlined text-[14px]';
             icon.textContent = 'schedule';
@@ -144,7 +150,7 @@ async function loadServices() {
             priceDiv.className = 'font-bold text-primary text-lg';
             priceDiv.textContent = `${s.price} ₸`;
             const delBtn = document.createElement('button');
-            delBtn.className = 'text-red-400/70 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 flex items-center';
+            delBtn.className = 'text-red-400/60 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 flex items-center';
             const delIcon = document.createElement('span');
             delIcon.className = 'material-symbols-outlined';
             delIcon.textContent = 'delete';
@@ -201,7 +207,7 @@ const appList = document.getElementById('appointments-list')!;
 (window as any).loadAppointments = async () => {
     appList.innerHTML = '';
     const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'text-center text-text-secondary';
+    loadingDiv.className = 'text-center text-text-secondary py-4';
     loadingDiv.textContent = 'Загрузка...';
     appList.appendChild(loadingDiv);
 
@@ -210,7 +216,7 @@ const appList = document.getElementById('appointments-list')!;
         appList.innerHTML = '';
         if (apps.length === 0) {
             const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'text-center text-text-secondary py-8 bg-surface-dark rounded-xl border border-border-dark/30';
+            emptyDiv.className = 'text-center text-text-secondary py-8 bg-surface-dark/40 rounded-xl border border-border-dark/50';
             emptyDiv.textContent = 'Записей пока нет';
             appList.appendChild(emptyDiv);
             return;
@@ -218,11 +224,13 @@ const appList = document.getElementById('appointments-list')!;
 
         apps.forEach((a: any) => {
             const card = document.createElement('div');
-            card.className = 'bg-surface-dark p-4 rounded-xl border border-border-dark/40 space-y-3 shadow-md';
+            card.className = 'bg-surface-dark/40 p-4 rounded-xl border border-border-dark/50 space-y-3 shadow-sm';
+
             const dateStr = new Date(a.starts_at).toLocaleString('ru-RU', { month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' });
 
             const header = document.createElement('div');
             header.className = 'flex justify-between items-start border-b border-border-dark/30 pb-2';
+
             const dateGroup = document.createElement('div');
             dateGroup.className = 'flex items-center gap-2';
             const calendarIcon = document.createElement('span');
@@ -233,6 +241,7 @@ const appList = document.getElementById('appointments-list')!;
             dateText.textContent = dateStr;
             dateGroup.appendChild(calendarIcon);
             dateGroup.appendChild(dateText);
+
             const statusBadge = document.createElement('div');
             const statusClass = a.status === 'confirmed' ? 'text-green-400 bg-green-400/10' : 'text-orange-400 bg-orange-400/10';
             statusBadge.className = `px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide ${statusClass}`;
@@ -242,9 +251,10 @@ const appList = document.getElementById('appointments-list')!;
 
             const grid = document.createElement('div');
             grid.className = 'grid grid-cols-2 gap-4 text-sm pt-1';
+
             const clientCol = document.createElement('div');
             const clientLabel = document.createElement('div');
-            clientLabel.className = 'text-[11px] text-text-secondary uppercase';
+            clientLabel.className = 'text-[11px] text-text-secondary uppercase mb-1';
             clientLabel.textContent = 'Клиент';
             const clientPhone = document.createElement('div');
             clientPhone.className = 'text-white font-medium';
@@ -255,19 +265,20 @@ const appList = document.getElementById('appointments-list')!;
             clientCol.appendChild(clientLabel);
             clientCol.appendChild(clientPhone);
             clientCol.appendChild(petName);
+
             const serviceCol = document.createElement('div');
             serviceCol.className = 'text-right';
             const serviceLabel = document.createElement('div');
-            serviceLabel.className = 'text-[11px] text-text-secondary uppercase';
+            serviceLabel.className = 'text-[11px] text-text-secondary uppercase mb-1';
             serviceLabel.textContent = 'Услуга';
             const serviceName = document.createElement('div');
             serviceName.className = 'text-white font-medium truncate';
             serviceName.textContent = a.services?.name || '---';
             serviceCol.appendChild(serviceLabel);
             serviceCol.appendChild(serviceName);
+
             grid.appendChild(clientCol);
             grid.appendChild(serviceCol);
-
             card.appendChild(header);
             card.appendChild(grid);
 
@@ -317,8 +328,8 @@ function renderScheduleForm(existingData: any[]) {
         const dayData = existingData.find((d: any) => d.day_of_week === i);
         const isActive = !!dayData;
         const row = document.createElement('div');
-        row.className = `group flex items-center gap-3 bg-background-dark px-4 py-4 min-h-[64px] hover:bg-surface-dark transition-colors ${!isActive ? 'opacity-50' : ''}`;
-        
+        row.className = `group flex items-center gap-3 bg-background-dark px-4 py-4 min-h-[64px] hover:bg-surface-dark transition-colors border-b border-border-dark/30 last:border-0 ${!isActive ? 'opacity-50' : ''}`;
+
         const leftSide = document.createElement('div');
         leftSide.className = 'flex items-center gap-3 flex-1 min-w-0';
         const checkWrap = document.createElement('div');
@@ -340,7 +351,7 @@ function renderScheduleForm(existingData: any[]) {
         const createTimeInput = (val: string, cls: string) => {
             const inp = document.createElement('input');
             inp.type = 'time';
-            inp.className = `${cls} bg-[#1c2936] border border-border-dark/50 text-white text-sm font-semibold px-2 py-1.5 rounded-lg w-[76px] text-center focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all`;
+            inp.className = `${cls} bg-[#182635] border border-border-dark/50 text-white text-sm font-semibold px-2 py-1.5 rounded-lg w-[76px] text-center focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all`;
             inp.value = val;
             return inp;
         };
@@ -375,10 +386,10 @@ btnSaveSchedule.onclick = async () => {
     const originalContent = btnSaveSchedule.innerHTML;
     btnSaveSchedule.textContent = '';
     const spinner = document.createElement('span');
-    spinner.className = 'material-symbols-outlined animate-spin mr-2 align-middle';
+    spinner.className = 'material-symbols-outlined animate-spin mr-2 text-[20px]';
     spinner.textContent = 'progress_activity';
     btnSaveSchedule.appendChild(spinner);
-    btnSaveSchedule.appendChild(document.createTextNode(' Сохранение...'));
+    // btnSaveSchedule.appendChild(document.createTextNode(' Сохранение...'));
 
     const payload: any[] = [];
     const slotMin = parseInt(globalSlotDuration.value) || 60;
