@@ -108,6 +108,9 @@ const btnNext = document.getElementById('btn-next-month');
 if(btnNext) btnNext.onclick = () => changeMonth(1);
 
 function changeMonth(delta: number) {
+    // Сначала ставим 1-е число, чтобы избежать бага при переходе с 31-го числа
+    // (например, 31 января + 1 месяц -> 3 марта, пропуская февраль)
+    calDate.setDate(1);
     calDate.setMonth(calDate.getMonth() + delta);
     renderCalendar();
 }
@@ -233,16 +236,27 @@ async function loadSlots(date: string) {
 }
 
 // --- SUBMIT ---
+// frontend/src/pages/client.ts
+
 Telegram.WebApp.MainButton.onClick(async () => {
     if (!selectedSlot || !currentService) return;
 
     const petName = (document.getElementById('pet-name') as HTMLInputElement).value;
     const phone = (document.getElementById('phone') as HTMLInputElement).value;
 
-    if(!petName || !phone) {
-        Telegram.WebApp.showAlert("Заполните кличку и телефон");
+    // --- ВАЛИДАЦИЯ ---
+    if (!petName) {
+        Telegram.WebApp.showAlert("Пожалуйста, введите кличку питомца");
         return;
     }
+
+    // Простой regex: разрешаем цифры, плюсы, скобки, дефисы. Длина от 7 до 18.
+    const phoneRegex = /^[\d\+\-\(\) ]{7,18}$/;
+    if (!phone || !phoneRegex.test(phone)) {
+        Telegram.WebApp.showAlert("Пожалуйста, введите корректный номер телефона");
+        return;
+    }
+    // -----------------
 
     Telegram.WebApp.MainButton.showProgress();
 
