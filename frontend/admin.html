@@ -12,6 +12,7 @@
         <button class="tab-btn active" onclick="switchTab('profile')">Профиль</button>
         <button class="tab-btn" onclick="switchTab('services')">Услуги</button>
         <button class="tab-btn" onclick="switchTab('appointments')">Записи</button>
+        <button class="tab-btn" onclick="switchTab('schedule')">График</button>
     </div>
 
     <div id="tab-profile" class="tab-content active">
@@ -26,6 +27,19 @@
     <div id="tab-services" class="tab-content" style="display: none;">
         <h3>Мои услуги</h3>
         <div id="services-list" class="list"></div>
+
+        <div id="tab-schedule" class="tab-content" style="display: none;">
+    <h3>График работы</h3>
+    <p style="font-size: 13px; color: #999; margin-bottom: 15px;">
+        Отметьте рабочие дни и укажите время.
+    </p>
+
+    <div id="schedule-container" class="list"></div>
+
+    <button id="btn-save-schedule" class="btn-primary" style="margin-top: 20px;">
+        Сохранить график
+    </button>
+</div>
 
         <hr>
         <h4>Добавить услугу</h4>

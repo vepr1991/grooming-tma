@@ -50,8 +50,6 @@ els.btnSave.onclick = async () => {
 const srvList = document.getElementById('services-list')!;
 const btnAddSrv = document.getElementById('btn-add-service') as HTMLButtonElement;
 
-// frontend/src/pages/admin.ts (внутри loadServices)
-
 async function loadServices() {
     try {
         const services = await apiFetch('/me/services');
@@ -60,14 +58,12 @@ async function loadServices() {
             const div = document.createElement('div');
             div.className = 'card';
 
-            // Создаем структуру через элементы, а не через строку HTML
-            // Это защищает от XSS (внедрения скриптов через название)
+            // Создаем структуру через элементы (защита от XSS)
             const row = document.createElement('div');
             row.style.display = 'flex';
             row.style.justifyContent = 'space-between';
 
             const info = document.createElement('span');
-            // Безопасная вставка текста
             const bName = document.createElement('b');
             bName.textContent = s.name;
             info.appendChild(bName);
@@ -173,9 +169,116 @@ const appList = document.getElementById('appointments-list')!;
     } catch (e) {
         appList.textContent = 'Ошибка загрузки записей';
     }
+}; // <--- ВАЖНО: Здесь закрывается функция loadAppointments
+
+// --- SCHEDULE LOGIC ---
+const scheduleContainer = document.getElementById('schedule-container')!;
+const btnSaveSchedule = document.getElementById('btn-save-schedule') as HTMLButtonElement;
+
+const daysMap = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']; // 1..7
+
+async function loadSchedule() {
+    scheduleContainer.innerHTML = 'Загрузка...';
+    try {
+        // Получаем текущий график из базы
+        const existing = await apiFetch('/me/working-hours'); // Вернет массив объектов
+        renderScheduleForm(existing);
+    } catch (e) {
+        scheduleContainer.textContent = 'Ошибка загрузки графика';
+    }
+}
+
+function renderScheduleForm(existingData: any[]) {
+    scheduleContainer.innerHTML = '';
+
+    // Создаем строки для дней с 1 (Пн) по 7 (Вс)
+    for (let i = 1; i <= 7; i++) {
+        // Ищем, есть ли настройки для этого дня в базе
+        const dayData = existingData.find((d: any) => d.day_of_week === i);
+        const isActive = !!dayData;
+
+        const row = document.createElement('div');
+        row.className = 'card';
+        row.style.display = 'flex';
+        row.style.flexDirection = 'column';
+        row.style.gap = '10px';
+
+        // HTML для одного дня
+        row.innerHTML = `
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+                <label style="font-weight:bold; display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" class="day-check" data-day="${i}" ${isActive ? 'checked' : ''}>
+                    ${daysMap[i-1]}
+                </label>
+            </div>
+
+            <div class="day-settings" style="display: ${isActive ? 'flex' : 'none'}; gap: 10px; flex-wrap: wrap;">
+                <div style="flex:1">
+                    <span style="font-size:12px">С</span>
+                    <input type="time" class="input-full time-start" value="${dayData?.start_time?.slice(0,5) || '10:00'}">
+                </div>
+                <div style="flex:1">
+                    <span style="font-size:12px">До</span>
+                    <input type="time" class="input-full time-end" value="${dayData?.end_time?.slice(0,5) || '20:00'}">
+                </div>
+                <div style="width: 80px">
+                    <span style="font-size:12px">Слот (мин)</span>
+                    <input type="number" class="input-full slot-dur" value="${dayData?.slot_minutes || 60}">
+                </div>
+            </div>
+        `;
+
+        // Логика: если убрали галочку, скрываем настройки
+        const checkbox = row.querySelector('.day-check') as HTMLInputElement;
+        const settingsDiv = row.querySelector('.day-settings') as HTMLElement;
+        checkbox.onchange = () => {
+            settingsDiv.style.display = checkbox.checked ? 'flex' : 'none';
+        };
+
+        scheduleContainer.appendChild(row);
+    }
+}
+
+btnSaveSchedule.onclick = async () => {
+    btnSaveSchedule.textContent = 'Сохраняю...';
+    btnSaveSchedule.disabled = true;
+
+    const payload: any[] = [];
+
+    // Собираем данные со всех 7 дней
+    document.querySelectorAll('.day-check').forEach((cb: any) => {
+        if (cb.checked) {
+            const row = cb.closest('.card');
+            const dayOfWeek = parseInt(cb.dataset.day);
+            const startTime = (row.querySelector('.time-start') as HTMLInputElement).value;
+            const endTime = (row.querySelector('.time-end') as HTMLInputElement).value;
+            const slotMin = parseInt((row.querySelector('.slot-dur') as HTMLInputElement).value) || 60;
+
+            payload.push({
+                day_of_week: dayOfWeek,
+                start_time: startTime,
+                end_time: endTime,
+                slot_minutes: slotMin
+            });
+        }
+    });
+
+    try {
+        await apiFetch('/me/working-hours', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        Telegram.WebApp.showAlert('График обновлен!');
+    } catch (e) {
+        Telegram.WebApp.showAlert('Ошибка сохранения');
+    } finally {
+        btnSaveSchedule.textContent = 'Сохранить график';
+        btnSaveSchedule.disabled = false;
+    }
 };
 
 // Инициализация при старте
 loadProfile();
 loadServices();
+loadSchedule();
 (window as any).loadAppointments();

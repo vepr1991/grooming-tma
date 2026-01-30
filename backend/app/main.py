@@ -1,3 +1,4 @@
+from typing import List  # <--- ВОТ ЭТО БЫЛО ПРОПУЩЕНО
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta, timezone, time
@@ -6,7 +7,7 @@ import uuid
 
 from .db import supabase
 from .auth import validate_telegram_data
-from .models import MasterUpdate, ServiceModel, AppointmentCreate
+from .models import MasterUpdate, ServiceModel, AppointmentCreate, WorkingHoursModel
 from .utils import notify_master
 
 app = FastAPI()
@@ -19,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ВАЖНО: Создаем роутер с префиксом /api ---
+# --- ВАЖНО: Создаем роутер БЕЗ префикса (чтобы работало и локально с прокси, и на проде) ---
 api_router = APIRouter()
 
 
@@ -136,6 +137,45 @@ def update_profile(update: MasterUpdate, user=Depends(validate_telegram_data)):
     return {"status": "ok"}
 
 
+# --- ГРАФИК РАБОТЫ (НОВОЕ) ---
+
+@api_router.get("/me/working-hours")
+def get_working_hours(user=Depends(validate_telegram_data)):
+    return supabase.table("working_hours").select("*") \
+        .eq("master_telegram_id", user['id']) \
+        .order("day_of_week").execute().data
+
+
+@api_router.post("/me/working-hours")
+def update_working_hours(hours: List[WorkingHoursModel], user=Depends(validate_telegram_data)):
+    # 1. Удаляем старое расписание
+    supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
+
+    # 2. Если прислали пустое - значит мастер не работает, просто выходим
+    if not hours:
+        return {"status": "ok"}
+
+    # 3. Подготавливаем данные для вставки
+    data_to_insert = []
+    for h in hours:
+        # Валидация на всякий случай
+        if h.slot_minutes < 15:
+            raise HTTPException(400, "Слот не может быть меньше 15 минут")
+
+        d = h.model_dump()
+        d['master_telegram_id'] = user['id']
+        # Убедимся, что время в формате HH:MM:SS (Supabase любит секунды)
+        if len(d['start_time']) == 5: d['start_time'] += ":00"
+        if len(d['end_time']) == 5: d['end_time'] += ":00"
+        data_to_insert.append(d)
+
+    # 4. Вставляем новое
+    supabase.table("working_hours").insert(data_to_insert).execute()
+    return {"status": "ok"}
+
+
+# --- УСЛУГИ ---
+
 @api_router.get("/me/services")
 def get_my_services(user=Depends(validate_telegram_data)):
     return supabase.table("services").select("*") \
@@ -157,6 +197,8 @@ def delete_service(sid: int, user=Depends(validate_telegram_data)):
         .eq("id", sid).eq("master_telegram_id", user['id']).execute().data
 
 
+# --- ЗАПИСИ (МАСТЕР) ---
+
 @api_router.get("/me/appointments")
 def get_my_appointments(user=Depends(validate_telegram_data)):
     return supabase.table("appointments").select("*, services(name)") \
@@ -170,7 +212,7 @@ async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
     return res.data
 
 
-# --- BOOKING ---
+# --- BOOKING (КЛИЕНТ) ---
 
 @api_router.post("/appointments")
 async def create_appointment(app_data: AppointmentCreate, user=Depends(validate_telegram_data)):
