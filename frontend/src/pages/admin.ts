@@ -1,4 +1,5 @@
-import { apiFetch } from '../core/api';
+// ВАЖНО: Импортируем BASE_URL
+import { apiFetch, BASE_URL } from '../core/api';
 import { initTelegram, Telegram } from '../core/tg';
 
 initTelegram();
@@ -42,7 +43,6 @@ function setAvatar(url: string) {
     els.avatarPlaceholder.classList.add('hidden');
 }
 
-// Загрузка аватарки
 els.avatarInput.onchange = async () => {
     const file = els.avatarInput.files?.[0];
     if (!file) return;
@@ -53,9 +53,15 @@ els.avatarInput.onchange = async () => {
     formData.append('file', file);
     
     try {
-        const response = await fetch('/api/uploads/avatar', {
+        // ИСПРАВЛЕНИЕ: Используем динамический BASE_URL
+        // На Render это будет https://backend.com/uploads/avatar
+        // Локально это будет /api/uploads/avatar
+        const response = await fetch(`${BASE_URL}/uploads/avatar`, {
             method: 'POST',
-            headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData },
+            headers: { 
+                'X-Tg-Init-Data': Telegram.WebApp.initData 
+                // Content-Type не ставим вручную для FormData!
+            },
             body: formData
         });
 
@@ -77,7 +83,6 @@ els.avatarInput.onchange = async () => {
 els.btnSave.onclick = async () => {
     els.btnSave.disabled = true;
     const originalText = els.btnSave.innerHTML;
-    // Безопасный лоадер
     els.btnSave.textContent = '';
     const spinner = document.createElement('span');
     spinner.className = 'material-symbols-outlined animate-spin mr-2 align-middle';
@@ -119,32 +124,25 @@ async function loadServices() {
             div.className = 'bg-surface-dark p-4 rounded-xl border border-border-dark/40 flex justify-between items-center shadow-sm';
 
             const leftDiv = document.createElement('div');
-            
             const nameDiv = document.createElement('div');
             nameDiv.className = 'font-bold text-white text-base';
             nameDiv.textContent = s.name;
-            
             const durDiv = document.createElement('div');
             durDiv.className = 'text-text-secondary text-sm flex items-center gap-1';
-            
             const icon = document.createElement('span');
             icon.className = 'material-symbols-outlined text-[14px]';
             icon.textContent = 'schedule';
-            
             const timeText = document.createTextNode(` ${s.duration_min} мин`);
             durDiv.appendChild(icon);
             durDiv.appendChild(timeText);
-            
             leftDiv.appendChild(nameDiv);
             leftDiv.appendChild(durDiv);
 
             const rightDiv = document.createElement('div');
             rightDiv.className = 'flex items-center gap-4';
-
             const priceDiv = document.createElement('div');
             priceDiv.className = 'font-bold text-primary text-lg';
             priceDiv.textContent = `${s.price} ₸`;
-
             const delBtn = document.createElement('button');
             delBtn.className = 'text-red-400/70 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 flex items-center';
             const delIcon = document.createElement('span');
@@ -152,7 +150,6 @@ async function loadServices() {
             delIcon.textContent = 'delete';
             delBtn.appendChild(delIcon);
             delBtn.onclick = () => deleteService(s.id);
-
             rightDiv.appendChild(priceDiv);
             rightDiv.appendChild(delBtn);
 
@@ -199,9 +196,8 @@ async function deleteService(id: number) {
     loadServices();
 }
 
-// --- APPOINTMENTS LOGIC (NO INNERHTML) ---
+// --- APPOINTMENTS LOGIC ---
 const appList = document.getElementById('appointments-list')!;
-
 (window as any).loadAppointments = async () => {
     appList.innerHTML = '';
     const loadingDiv = document.createElement('div');
@@ -212,7 +208,6 @@ const appList = document.getElementById('appointments-list')!;
     try {
         const apps = await apiFetch('/me/appointments');
         appList.innerHTML = '';
-        
         if (apps.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'text-center text-text-secondary py-8 bg-surface-dark rounded-xl border border-border-dark/30';
@@ -224,15 +219,10 @@ const appList = document.getElementById('appointments-list')!;
         apps.forEach((a: any) => {
             const card = document.createElement('div');
             card.className = 'bg-surface-dark p-4 rounded-xl border border-border-dark/40 space-y-3 shadow-md';
-            
-            const dateStr = new Date(a.starts_at).toLocaleString('ru-RU', {
-                month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit'
-            });
+            const dateStr = new Date(a.starts_at).toLocaleString('ru-RU', { month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' });
 
-            // Header
             const header = document.createElement('div');
             header.className = 'flex justify-between items-start border-b border-border-dark/30 pb-2';
-
             const dateGroup = document.createElement('div');
             dateGroup.className = 'flex items-center gap-2';
             const calendarIcon = document.createElement('span');
@@ -243,19 +233,15 @@ const appList = document.getElementById('appointments-list')!;
             dateText.textContent = dateStr;
             dateGroup.appendChild(calendarIcon);
             dateGroup.appendChild(dateText);
-
             const statusBadge = document.createElement('div');
             const statusClass = a.status === 'confirmed' ? 'text-green-400 bg-green-400/10' : 'text-orange-400 bg-orange-400/10';
             statusBadge.className = `px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide ${statusClass}`;
             statusBadge.textContent = a.status;
-
             header.appendChild(dateGroup);
             header.appendChild(statusBadge);
 
-            // Grid
             const grid = document.createElement('div');
             grid.className = 'grid grid-cols-2 gap-4 text-sm pt-1';
-
             const clientCol = document.createElement('div');
             const clientLabel = document.createElement('div');
             clientLabel.className = 'text-[11px] text-text-secondary uppercase';
@@ -269,7 +255,6 @@ const appList = document.getElementById('appointments-list')!;
             clientCol.appendChild(clientLabel);
             clientCol.appendChild(clientPhone);
             clientCol.appendChild(petName);
-
             const serviceCol = document.createElement('div');
             serviceCol.className = 'text-right';
             const serviceLabel = document.createElement('div');
@@ -280,7 +265,6 @@ const appList = document.getElementById('appointments-list')!;
             serviceName.textContent = a.services?.name || '---';
             serviceCol.appendChild(serviceLabel);
             serviceCol.appendChild(serviceName);
-
             grid.appendChild(clientCol);
             grid.appendChild(serviceCol);
 
@@ -299,7 +283,6 @@ const appList = document.getElementById('appointments-list')!;
                 };
                 card.appendChild(confirmBtn);
             }
-            
             appList.appendChild(card);
         });
     } catch (e) {
@@ -319,12 +302,9 @@ async function loadSchedule() {
     loading.className = 'p-4 text-center text-text-secondary';
     loading.textContent = 'Загрузка...';
     scheduleContainer.appendChild(loading);
-
     try {
         const existing = await apiFetch('/me/working-hours');
-        if (existing && existing.length > 0) {
-            globalSlotDuration.value = existing[0].slot_minutes.toString();
-        }
+        if (existing && existing.length > 0) globalSlotDuration.value = existing[0].slot_minutes.toString();
         renderScheduleForm(existing);
     } catch (e) {
         scheduleContainer.textContent = 'Ошибка загрузки графика';
@@ -333,38 +313,30 @@ async function loadSchedule() {
 
 function renderScheduleForm(existingData: any[]) {
     scheduleContainer.innerHTML = '';
-
     for (let i = 1; i <= 7; i++) {
         const dayData = existingData.find((d: any) => d.day_of_week === i);
         const isActive = !!dayData;
-
         const row = document.createElement('div');
         row.className = `group flex items-center gap-3 bg-background-dark px-4 py-4 min-h-[64px] hover:bg-surface-dark transition-colors ${!isActive ? 'opacity-50' : ''}`;
-
+        
         const leftSide = document.createElement('div');
         leftSide.className = 'flex items-center gap-3 flex-1 min-w-0';
-
         const checkWrap = document.createElement('div');
         checkWrap.className = 'flex size-6 items-center justify-center shrink-0';
-
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'h-5 w-5 rounded border-border-dark border-2 bg-transparent text-primary checked:bg-primary focus:ring-0 cursor-pointer transition-all';
         checkbox.dataset.day = i.toString();
         checkbox.checked = isActive;
-        
         checkWrap.appendChild(checkbox);
-
         const label = document.createElement('p');
         label.className = `text-white text-base font-medium truncate transition-all ${!isActive ? 'line-through decoration-text-secondary text-text-secondary' : ''}`;
         label.textContent = daysMap[i - 1];
-
         leftSide.appendChild(checkWrap);
         leftSide.appendChild(label);
 
         const settingsDiv = document.createElement('div');
         settingsDiv.className = `flex items-center gap-2 shrink-0 transition-all ${!isActive ? 'pointer-events-none grayscale opacity-50' : ''}`;
-
         const createTimeInput = (val: string, cls: string) => {
             const inp = document.createElement('input');
             inp.type = 'time';
@@ -372,15 +344,11 @@ function renderScheduleForm(existingData: any[]) {
             inp.value = val;
             return inp;
         };
-
         const timeStart = createTimeInput(dayData?.start_time?.slice(0, 5) || '09:00', 'time-start');
-        
         const sep = document.createElement('span');
         sep.className = 'text-text-secondary font-medium';
         sep.textContent = '-';
-        
         const timeEnd = createTimeInput(dayData?.end_time?.slice(0, 5) || '18:00', 'time-end');
-
         settingsDiv.appendChild(timeStart);
         settingsDiv.appendChild(sep);
         settingsDiv.appendChild(timeEnd);
@@ -396,7 +364,6 @@ function renderScheduleForm(existingData: any[]) {
                 label.classList.add('line-through', 'decoration-text-secondary', 'text-text-secondary');
             }
         };
-
         row.appendChild(leftSide);
         row.appendChild(settingsDiv);
         scheduleContainer.appendChild(row);
@@ -415,7 +382,6 @@ btnSaveSchedule.onclick = async () => {
 
     const payload: any[] = [];
     const slotMin = parseInt(globalSlotDuration.value) || 60;
-
     const checkboxes = document.querySelectorAll('#schedule-container input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
     checkboxes.forEach((cb) => {
         if (cb.checked) {
@@ -424,7 +390,6 @@ btnSaveSchedule.onclick = async () => {
                 const dayOfWeek = parseInt(cb.dataset.day || '0');
                 const startInp = row.querySelector('.time-start') as HTMLInputElement;
                 const endInp = row.querySelector('.time-end') as HTMLInputElement;
-                
                 payload.push({
                     day_of_week: dayOfWeek,
                     start_time: startInp.value,
@@ -436,10 +401,7 @@ btnSaveSchedule.onclick = async () => {
     });
 
     try {
-        await apiFetch('/me/working-hours', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
+        await apiFetch('/me/working-hours', { method: 'POST', body: JSON.stringify(payload) });
         Telegram.WebApp.showAlert('График успешно обновлен!');
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка сохранения графика');
@@ -449,7 +411,6 @@ btnSaveSchedule.onclick = async () => {
     }
 };
 
-// Init
 loadProfile();
 loadServices();
 loadSchedule();
