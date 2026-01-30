@@ -11,8 +11,8 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('profile')">Профиль</button>
         <button class="tab-btn" onclick="switchTab('services')">Услуги</button>
-        <button class="tab-btn" onclick="switchTab('appointments')">Записи</button>
         <button class="tab-btn" onclick="switchTab('schedule')">График</button>
+        <button class="tab-btn" onclick="switchTab('appointments')">Записи</button>
     </div>
 
     <div id="tab-profile" class="tab-content active">
@@ -28,19 +28,6 @@
         <h3>Мои услуги</h3>
         <div id="services-list" class="list"></div>
 
-        <div id="tab-schedule" class="tab-content" style="display: none;">
-    <h3>График работы</h3>
-    <p style="font-size: 13px; color: #999; margin-bottom: 15px;">
-        Отметьте рабочие дни и укажите время.
-    </p>
-
-    <div id="schedule-container" class="list"></div>
-
-    <button id="btn-save-schedule" class="btn-primary" style="margin-top: 20px;">
-        Сохранить график
-    </button>
-</div>
-
         <hr>
         <h4>Добавить услугу</h4>
         <input type="text" id="new-srv-name" placeholder="Название (напр. Стрижка)" class="input-full">
@@ -49,6 +36,19 @@
             <input type="number" id="new-srv-dur" placeholder="Мин" value="60" class="input-full">
         </div>
         <button id="btn-add-service" class="btn-primary">Добавить</button>
+    </div>
+
+    <div id="tab-schedule" class="tab-content" style="display: none;">
+        <h3>График работы</h3>
+        <p style="font-size: 13px; color: #999; margin-bottom: 15px;">
+            Отметьте рабочие дни и укажите время.
+        </p>
+        
+        <div id="schedule-container" class="list"></div>
+
+        <button id="btn-save-schedule" class="btn-primary" style="margin-top: 20px;">
+            Сохранить график
+        </button>
     </div>
 
     <div id="tab-appointments" class="tab-content" style="display: none;">
@@ -66,9 +66,18 @@
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
 
             // Показываем нужный
-            document.getElementById(`tab-${tabName}`).style.display = 'block';
-            // Ищем кнопку (простой вариант)
-            event.target.classList.add('active');
+            const tab = document.getElementById(`tab-${tabName}`);
+            if (tab) tab.style.display = 'block';
+            
+            // Ищем кнопку, по которой кликнули (event.target) и делаем активной
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            
+            // Если вкладка записей - обновляем данные
+            if (tabName === 'appointments' && window.loadAppointments) {
+                window.loadAppointments();
+            }
         }
     </script>
 </body>
