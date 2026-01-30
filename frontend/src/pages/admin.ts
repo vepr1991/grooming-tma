@@ -569,10 +569,14 @@ function renderAppointmentsList(apps: any[]) {
     if (!appList) return;
     appList.innerHTML = '';
 
-    // Filter
+    // ФИЛЬТРАЦИЯ:
+    // 1. По дате (выбранный день)
+    // 2. Исключаем статус 'cancelled' (чтобы отмененные исчезали)
     const filtered = apps.filter((a: any) => {
         const d = new Date(a.starts_at);
-        return d.toDateString() === selectedDate.toDateString();
+        const isSameDay = d.toDateString() === selectedDate.toDateString();
+        const isNotCancelled = a.status !== 'cancelled'; // <--- ВАЖНОЕ ДОБАВЛЕНИЕ
+        return isSameDay && isNotCancelled;
     });
 
     if (filtered.length === 0) {
@@ -585,6 +589,7 @@ function renderAppointmentsList(apps: any[]) {
     }
 
     filtered.forEach((a: any) => {
+        // ... (остальной код функции без изменений)
         const cardHTML = createRecordCardHTML(a);
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cardHTML;
@@ -593,12 +598,9 @@ function renderAppointmentsList(apps: any[]) {
         // Handlers
         const btnMsg = cardEl.querySelector('.btn-msg') as HTMLElement;
         if(btnMsg) btnMsg.onclick = () => {
-            // Smart Messaging Logic
             if (a.client_username) {
-                // Если есть username - открываем Telegram
                 Telegram.WebApp.openTelegramLink(`https://t.me/${a.client_username}`);
             } else {
-                // Если нет username - открываем WhatsApp по номеру
                 const phone = a.client_phone.replace(/\D/g, '');
                 Telegram.WebApp.openLink(`https://wa.me/${phone}`);
             }
@@ -627,10 +629,12 @@ function renderAppointmentsList(apps: any[]) {
                    btnCancel.textContent = '...';
                    try {
                        await apiFetch(`/me/appointments/${a.id}/cancel`, { method: 'POST' });
+                       // После успешной отмены перезагружаем список
+                       // Благодаря новому фильтру запись исчезнет из UI
                        (window as any).loadAppointments();
                        Telegram.WebApp.showAlert('Запись отменена');
                    } catch (e) {
-                       Telegram.WebApp.showAlert('Не удалось отменить (нет API?)');
+                       Telegram.WebApp.showAlert('Не удалось отменить');
                        btnCancel.disabled = false;
                        btnCancel.textContent = 'Отменить';
                    }
