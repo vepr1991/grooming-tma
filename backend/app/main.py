@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import json
 
-# Импортируем наши модули (предполагаем, что auth.py и db.py настроены корректно)
+# Импортируем наши модули
 from .auth import validate_telegram_data
 from .db import supabase
 
@@ -67,8 +67,8 @@ async def get_my_profile(user=Depends(validate_telegram_data)):
     # user - это dict с данными из initData (id, username, first_name...)
     tg_id = user['id']
 
-    # Пытаемся найти пользователя в БД
-    res = supabase.table("users").select("*").eq("telegram_id", tg_id).execute()
+    # ИСПРАВЛЕНО: users -> masters
+    res = supabase.table("masters").select("*").eq("telegram_id", tg_id).execute()
 
     if not res.data:
         # Если нет - создаем (первый вход)
@@ -77,7 +77,8 @@ async def get_my_profile(user=Depends(validate_telegram_data)):
             "username": user.get("username"),
             "full_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
         }
-        res = supabase.table("users").insert(new_user).execute()
+        # ИСПРАВЛЕНО: users -> masters
+        res = supabase.table("masters").insert(new_user).execute()
         return {"user": user, "profile": res.data[0]}
 
     return {"user": user, "profile": res.data[0]}
@@ -88,25 +89,23 @@ async def update_profile(data: UserProfileUpdate, user=Depends(validate_telegram
     tg_id = user['id']
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
 
-    res = supabase.table("users").update(update_data).eq("telegram_id", tg_id).execute()
+    # ИСПРАВЛЕНО: users -> masters
+    res = supabase.table("masters").update(update_data).eq("telegram_id", tg_id).execute()
     return res.data
 
 
 # 2. ЗАГРУЗКА АВАТАРА
 @app.post("/uploads/avatar")
 async def upload_avatar(file: UploadFile = File(...), user=Depends(validate_telegram_data)):
-    # В Supabase Storage должен быть создан bucket "avatars" (Public)
     file_content = await file.read()
-    file_path = f"{user['id']}/avatar.png"  # Перезаписываем старый, чтобы не плодить файлы
+    file_path = f"{user['id']}/avatar.png"
 
-    # Загружаем в Supabase Storage
     try:
         supabase.storage.from_("avatars").upload(
             file_path,
             file_content,
             file_options={"content-type": file.content_type, "upsert": "true"}
         )
-        # Получаем публичную ссылку
         public_url = supabase.storage.from_("avatars").get_public_url(file_path)
         return {"avatar_url": public_url}
     except Exception as e:
@@ -143,7 +142,6 @@ async def get_hours(user=Depends(validate_telegram_data)):
 
 @app.post("/me/working-hours")
 async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram_data)):
-    # Сначала удаляем старые, потом пишем новые (простая стратегия)
     supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
 
     data_list = []
@@ -158,17 +156,14 @@ async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram
     return {"status": "updated"}
 
 
-# 5. КЛИЕНТСКАЯ ЧАСТЬ (Публичный список мастеров/услуг)
-# Для простоты клиент может запрашивать /masters, но пока используем прямые ID в client.html
-
+# 5. КЛИЕНТСКАЯ ЧАСТЬ (Каталог)
 @app.get("/masters/{master_id}/catalog")
 async def get_master_catalog(master_id: int):
-    # Данные мастера
-    u_res = supabase.table("users").select("salon_name, address, phone, description, avatar_url").eq("telegram_id",
-                                                                                                     master_id).execute()
-    # Услуги
+    # ИСПРАВЛЕНО: users -> masters
+    u_res = supabase.table("masters").select("salon_name, address, phone, description, avatar_url").eq("telegram_id",
+                                                                                                       master_id).execute()
+
     s_res = supabase.table("services").select("*").eq("master_telegram_id", master_id).execute()
-    # Часы работы (для календаря)
     w_res = supabase.table("working_hours").select("*").eq("master_telegram_id", master_id).execute()
 
     return {
@@ -180,8 +175,6 @@ async def get_master_catalog(master_id: int):
 
 @app.get("/masters/{master_id}/slots")
 async def get_slots(master_id: int, date: str):
-    # Здесь должна быть логика расчета свободных слотов
-    # Для MVP просто возвращаем список занятых времен
     res = supabase.table("appointments") \
         .select("starts_at, services(duration_min)") \
         .eq("master_telegram_id", master_id) \
@@ -196,33 +189,18 @@ async def get_slots(master_id: int, date: str):
 
 @app.post("/appointments")
 async def create_appointment(app_data: AppointmentCreate, user=Depends(validate_telegram_data)):
-    """
-    Создание записи клиентом.
-    Автоматически берем Telegram ID и Username клиента из initData.
-    """
     data = app_data.model_dump()
-
-    # Переносим ID мастера из тела в поле для БД, если нужно переименование
-    # В модели: master_tg_id -> В БД: master_telegram_id
     data['master_telegram_id'] = data.pop('master_tg_id')
-
-    # Данные клиента из авторизации
     data['client_telegram_id'] = user['id']
-    data['client_username'] = user.get('username')  # <--- Сохраняем Username!
-
+    data['client_username'] = user.get('username')  # Сохраняем username
     data['status'] = 'pending'
 
     res = supabase.table("appointments").insert(data).execute()
-
-    # TODO: Здесь можно отправить уведомление мастеру через бота
-
     return res.data
 
 
 @app.get("/me/appointments")
 async def get_my_appointments(user=Depends(validate_telegram_data)):
-    # Получаем записи с названием услуги (join)
-    # Supabase syntax for join: services(name)
     res = supabase.table("appointments") \
         .select("*, services(name)") \
         .eq("master_telegram_id", user['id']) \
@@ -233,16 +211,13 @@ async def get_my_appointments(user=Depends(validate_telegram_data)):
 
 @app.post("/me/appointments/{aid}/confirm")
 async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
-    # Проверяем, что запись принадлежит этому мастеру
     res = supabase.table("appointments").update({"status": "confirmed"}) \
         .eq("id", aid).eq("master_telegram_id", user['id']).execute()
     return res.data
 
 
-# --- НОВЫЙ ЭНДПОИНТ: ОТМЕНА ЗАПИСИ ---
 @app.post("/me/appointments/{aid}/cancel")
 async def cancel_appointment(aid: int, user=Depends(validate_telegram_data)):
-    # Ставим статус 'cancelled'
     res = supabase.table("appointments").update({"status": "cancelled"}) \
         .eq("id", aid).eq("master_telegram_id", user['id']).execute()
     return res.data
