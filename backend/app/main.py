@@ -1,290 +1,248 @@
-from typing import List
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, APIRouter
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta, timezone, time
-from zoneinfo import ZoneInfo
-import uuid
+from pydantic import BaseModel
+from typing import List, Optional
+import json
 
-from .db import supabase
+# Импортируем наши модули (предполагаем, что auth.py и db.py настроены корректно)
 from .auth import validate_telegram_data
-from .models import MasterUpdate, ServiceModel, AppointmentCreate, WorkingHoursModel
-from .utils import notify_master
+from .db import supabase
 
 app = FastAPI()
 
-# Разрешаем CORS
+# Настройка CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Создаем роутер (маршруты регистрируем на него)
-api_router = APIRouter()
+
+# --- PYDANTIC MODELS (Схемы данных) ---
+
+class UserProfileUpdate(BaseModel):
+    salon_name: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    description: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 
-# --- НИЖЕ ИСПОЛЬЗУЕМ @api_router ВМЕСТО @app ---
+class ServiceCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    price: float
+    duration_min: int = 60
 
-@api_router.get("/masters/{master_id}")
-def get_master_profile(master_id: int):
-    res = supabase.table("masters").select("*").eq("telegram_id", master_id).execute()
+
+class WorkingHourItem(BaseModel):
+    day_of_week: int  # 1=Mon, 7=Sun
+    start_time: str  # "09:00"
+    end_time: str  # "18:00"
+    slot_minutes: int = 30
+
+
+class AppointmentCreate(BaseModel):
+    service_id: int
+    master_tg_id: int
+    starts_at: str  # ISO format datetime
+    client_phone: str
+    pet_name: str
+    pet_breed: Optional[str] = None
+    comment: Optional[str] = None
+
+
+# --- ROUTES ---
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
+# 1. ПРОФИЛЬ МАСТЕРА
+@app.get("/me")
+async def get_my_profile(user=Depends(validate_telegram_data)):
+    # user - это dict с данными из initData (id, username, first_name...)
+    tg_id = user['id']
+
+    # Пытаемся найти пользователя в БД
+    res = supabase.table("users").select("*").eq("telegram_id", tg_id).execute()
+
     if not res.data:
-        raise HTTPException(404, "Master not found")
-    return res.data[0]
+        # Если нет - создаем (первый вход)
+        new_user = {
+            "telegram_id": tg_id,
+            "username": user.get("username"),
+            "full_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+        }
+        res = supabase.table("users").insert(new_user).execute()
+        return {"user": user, "profile": res.data[0]}
+
+    return {"user": user, "profile": res.data[0]}
 
 
-@api_router.get("/masters/{master_id}/services")
-def get_master_services(master_id: int):
-    return supabase.table("services").select("*") \
-        .eq("master_telegram_id", master_id) \
-        .eq("is_active", True) \
-        .order("price") \
-        .execute().data
+@app.patch("/me/profile")
+async def update_profile(data: UserProfileUpdate, user=Depends(validate_telegram_data)):
+    tg_id = user['id']
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+
+    res = supabase.table("users").update(update_data).eq("telegram_id", tg_id).execute()
+    return res.data
 
 
-@api_router.get("/masters/{master_id}/availability")
-def get_availability(master_id: int, date: str):
-    """
-    date: YYYY-MM-DD
-    Возвращает свободные слоты в ISO формате (Честный UTC).
-    """
+# 2. ЗАГРУЗКА АВАТАРА
+@app.post("/uploads/avatar")
+async def upload_avatar(file: UploadFile = File(...), user=Depends(validate_telegram_data)):
+    # В Supabase Storage должен быть создан bucket "avatars" (Public)
+    file_content = await file.read()
+    file_path = f"{user['id']}/avatar.png"  # Перезаписываем старый, чтобы не плодить файлы
+
+    # Загружаем в Supabase Storage
     try:
-        m_settings = supabase.table("masters").select("timezone").eq("telegram_id", master_id).single().execute()
-        master_tz_name = m_settings.data.get('timezone') or 'Asia/Almaty'
-        try:
-            master_tz = ZoneInfo(master_tz_name)
-        except:
-            master_tz = ZoneInfo('Asia/Almaty')
-
-        target_date = datetime.strptime(date, "%Y-%m-%d").date()
-        dow = target_date.isoweekday()
-
-        wh_res = supabase.table("working_hours").select("*") \
-            .eq("master_telegram_id", master_id).eq("day_of_week", dow).execute()
-
-        if not wh_res.data:
-            start_t = time(10, 0)
-            end_t = time(20, 0)
-            slot_min = 60
-        else:
-            wh = wh_res.data[0]
-            start_t = datetime.strptime(wh['start_time'], "%H:%M:%S").time()
-            end_t = datetime.strptime(wh['end_time'], "%H:%M:%S").time()
-            slot_min = wh['slot_minutes']
-
-        slots = []
-        current_dt = datetime.combine(target_date, start_t, tzinfo=master_tz)
-        end_dt = datetime.combine(target_date, end_t, tzinfo=master_tz)
-
-        while current_dt < end_dt:
-            utc_slot = current_dt.astimezone(timezone.utc)
-            slots.append(utc_slot)
-            current_dt += timedelta(minutes=slot_min)
-
-        day_start_utc = datetime.combine(target_date, time(0, 0), tzinfo=master_tz).astimezone(timezone.utc).isoformat()
-        day_end_utc = datetime.combine(target_date, time(23, 59), tzinfo=master_tz).astimezone(timezone.utc).isoformat()
-
-        apps_res = supabase.table("appointments").select("starts_at") \
-            .eq("master_telegram_id", master_id) \
-            .in_("status", ["pending", "confirmed"]) \
-            .gte("starts_at", day_start_utc).lte("starts_at", day_end_utc).execute()
-
-        taken_times = set()
-        for a in apps_res.data:
-            taken_dt = datetime.fromisoformat(a['starts_at'])
-            taken_times.add(taken_dt.strftime("%H:%M"))
-
-        available_slots = []
-        for s in slots:
-            slot_utc_str = s.strftime("%H:%M")
-            if slot_utc_str not in taken_times:
-                available_slots.append(s.isoformat())
-
-        return available_slots
-
+        supabase.storage.from_("avatars").upload(
+            file_path,
+            file_content,
+            file_options={"content-type": file.content_type, "upsert": "true"}
+        )
+        # Получаем публичную ссылку
+        public_url = supabase.storage.from_("avatars").get_public_url(file_path)
+        return {"avatar_url": public_url}
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- AUTH / ME ---
-
-@api_router.get("/me")
-def get_me(user=Depends(validate_telegram_data)):
-    uid = user['id']
-    m_res = supabase.table("masters").select("*").eq("telegram_id", uid).execute()
-    role = "client"
-    profile = None
-    if m_res.data:
-        role = "master"
-        profile = m_res.data[0]
-    return {"role": role, "user": user, "profile": profile}
+# 3. УСЛУГИ
+@app.get("/me/services")
+async def get_services(user=Depends(validate_telegram_data)):
+    res = supabase.table("services").select("*").eq("master_telegram_id", user['id']).execute()
+    return res.data
 
 
-# --- MASTER ROUTES ---
-
-@api_router.patch("/me/profile")
-def update_profile(update: MasterUpdate, user=Depends(validate_telegram_data)):
-    data = update.model_dump(exclude_unset=True)
-    data['telegram_id'] = user['id']
-    exist = supabase.table("masters").select("id").eq("telegram_id", user['id']).execute()
-    if not exist.data:
-        supabase.table("masters").insert(data).execute()
-    else:
-        supabase.table("masters").update(data).eq("telegram_id", user['id']).execute()
-    return {"status": "ok"}
-
-
-# --- ГРАФИК РАБОТЫ ---
-
-@api_router.get("/me/working-hours")
-def get_working_hours(user=Depends(validate_telegram_data)):
-    return supabase.table("working_hours").select("*") \
-        .eq("master_telegram_id", user['id']) \
-        .order("day_of_week").execute().data
-
-
-@api_router.post("/me/working-hours")
-def update_working_hours(hours: List[WorkingHoursModel], user=Depends(validate_telegram_data)):
-    # 1. Удаляем старое расписание
-    supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
-
-    # 2. Если прислали пустое - значит мастер не работает, просто выходим
-    if not hours:
-        return {"status": "ok"}
-
-    # 3. Подготавливаем данные для вставки
-    data_to_insert = []
-    for h in hours:
-        # Валидация на всякий случай
-        if h.slot_minutes < 15:
-            raise HTTPException(400, "Слот не может быть меньше 15 минут")
-
-        d = h.model_dump()
-        d['master_telegram_id'] = user['id']
-        # Убедимся, что время в формате HH:MM:SS (Supabase любит секунды)
-        if len(d['start_time']) == 5: d['start_time'] += ":00"
-        if len(d['end_time']) == 5: d['end_time'] += ":00"
-        data_to_insert.append(d)
-
-    # 4. Вставляем новое
-    supabase.table("working_hours").insert(data_to_insert).execute()
-    return {"status": "ok"}
-
-
-# --- УСЛУГИ ---
-
-@api_router.get("/me/services")
-def get_my_services(user=Depends(validate_telegram_data)):
-    return supabase.table("services").select("*") \
-        .eq("master_telegram_id", user['id']) \
-        .eq("is_active", True) \
-        .order("id").execute().data
-
-
-@api_router.post("/me/services")
-def create_service(srv: ServiceModel, user=Depends(validate_telegram_data)):
+@app.post("/me/services")
+async def create_service(srv: ServiceCreate, user=Depends(validate_telegram_data)):
     data = srv.model_dump()
     data['master_telegram_id'] = user['id']
-    return supabase.table("services").insert(data).execute().data
+    res = supabase.table("services").insert(data).execute()
+    return res.data
 
 
-@api_router.delete("/me/services/{sid}")
-def delete_service(sid: int, user=Depends(validate_telegram_data)):
-    return supabase.table("services").update({"is_active": False}) \
-        .eq("id", sid).eq("master_telegram_id", user['id']).execute().data
+@app.delete("/me/services/{sid}")
+async def delete_service(sid: int, user=Depends(validate_telegram_data)):
+    res = supabase.table("services").delete().eq("id", sid).eq("master_telegram_id", user['id']).execute()
+    return {"status": "deleted"}
 
 
-# --- ЗАПИСИ (МАСТЕР) ---
+# 4. ГРАФИК РАБОТЫ
+@app.get("/me/working-hours")
+async def get_hours(user=Depends(validate_telegram_data)):
+    res = supabase.table("working_hours").select("*").eq("master_telegram_id", user['id']).execute()
+    return res.data
 
-@api_router.get("/me/appointments")
-def get_my_appointments(user=Depends(validate_telegram_data)):
-    return supabase.table("appointments").select("*, services(name)") \
-        .eq("master_telegram_id", user['id']).order("starts_at", desc=True).limit(50).execute().data
+
+@app.post("/me/working-hours")
+async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram_data)):
+    # Сначала удаляем старые, потом пишем новые (простая стратегия)
+    supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
+
+    data_list = []
+    for h in hours:
+        item = h.model_dump()
+        item['master_telegram_id'] = user['id']
+        data_list.append(item)
+
+    if data_list:
+        supabase.table("working_hours").insert(data_list).execute()
+
+    return {"status": "updated"}
 
 
-@api_router.post("/me/appointments/{aid}/confirm")
+# 5. КЛИЕНТСКАЯ ЧАСТЬ (Публичный список мастеров/услуг)
+# Для простоты клиент может запрашивать /masters, но пока используем прямые ID в client.html
+
+@app.get("/masters/{master_id}/catalog")
+async def get_master_catalog(master_id: int):
+    # Данные мастера
+    u_res = supabase.table("users").select("salon_name, address, phone, description, avatar_url").eq("telegram_id",
+                                                                                                     master_id).execute()
+    # Услуги
+    s_res = supabase.table("services").select("*").eq("master_telegram_id", master_id).execute()
+    # Часы работы (для календаря)
+    w_res = supabase.table("working_hours").select("*").eq("master_telegram_id", master_id).execute()
+
+    return {
+        "master": u_res.data[0] if u_res.data else None,
+        "services": s_res.data,
+        "schedule": w_res.data
+    }
+
+
+@app.get("/masters/{master_id}/slots")
+async def get_slots(master_id: int, date: str):
+    # Здесь должна быть логика расчета свободных слотов
+    # Для MVP просто возвращаем список занятых времен
+    res = supabase.table("appointments") \
+        .select("starts_at, services(duration_min)") \
+        .eq("master_telegram_id", master_id) \
+        .eq("status", "confirmed") \
+        .filter("starts_at", "gte", f"{date}T00:00:00") \
+        .filter("starts_at", "lte", f"{date}T23:59:59") \
+        .execute()
+    return res.data
+
+
+# 6. ЗАПИСИ (APPOINTMENTS)
+
+@app.post("/appointments")
+async def create_appointment(app_data: AppointmentCreate, user=Depends(validate_telegram_data)):
+    """
+    Создание записи клиентом.
+    Автоматически берем Telegram ID и Username клиента из initData.
+    """
+    data = app_data.model_dump()
+
+    # Переносим ID мастера из тела в поле для БД, если нужно переименование
+    # В модели: master_tg_id -> В БД: master_telegram_id
+    data['master_telegram_id'] = data.pop('master_tg_id')
+
+    # Данные клиента из авторизации
+    data['client_telegram_id'] = user['id']
+    data['client_username'] = user.get('username')  # <--- Сохраняем Username!
+
+    data['status'] = 'pending'
+
+    res = supabase.table("appointments").insert(data).execute()
+
+    # TODO: Здесь можно отправить уведомление мастеру через бота
+
+    return res.data
+
+
+@app.get("/me/appointments")
+async def get_my_appointments(user=Depends(validate_telegram_data)):
+    # Получаем записи с названием услуги (join)
+    # Supabase syntax for join: services(name)
+    res = supabase.table("appointments") \
+        .select("*, services(name)") \
+        .eq("master_telegram_id", user['id']) \
+        .order("starts_at", desc=False) \
+        .execute()
+    return res.data
+
+
+@app.post("/me/appointments/{aid}/confirm")
 async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
+    # Проверяем, что запись принадлежит этому мастеру
     res = supabase.table("appointments").update({"status": "confirmed"}) \
         .eq("id", aid).eq("master_telegram_id", user['id']).execute()
     return res.data
 
 
-# --- BOOKING (КЛИЕНТ) ---
-
-@api_router.post("/appointments")
-async def create_appointment(app_data: AppointmentCreate, user=Depends(validate_telegram_data)):
-    try:
-        srv = supabase.table("services").select("*").eq("id", app_data.service_id).single().execute()
-        if not srv.data or srv.data['master_telegram_id'] != app_data.master_tg_id:
-            raise HTTPException(400, "Invalid service")
-
-        data = app_data.model_dump(mode='json')
-        data['master_telegram_id'] = data.pop('master_tg_id')
-        data['client_telegram_id'] = user['id']
-
-        res = supabase.table("appointments").insert(data).execute()
-
-        try:
-            m_settings = supabase.table("masters").select("timezone").eq("telegram_id",
-                                                                         data['master_telegram_id']).single().execute()
-            master_tz_name = m_settings.data.get('timezone') or 'Asia/Almaty'
-
-            utc_dt = app_data.starts_at
-            if utc_dt.tzinfo is None:
-                utc_dt = utc_dt.replace(tzinfo=timezone.utc)
-
-            try:
-                local_dt = utc_dt.astimezone(ZoneInfo(master_tz_name))
-            except Exception:
-                local_dt = utc_dt.astimezone(ZoneInfo('Asia/Almaty'))
-
-            formatted_time = local_dt.strftime("%d.%m.%Y в %H:%M")
-
-            msg_text = (
-                f"🗓 *Новая запись!*\n"
-                f"👤 Клиент: {app_data.client_phone}\n"
-                f"🐾 Питомец: {app_data.pet_name}\n"
-                f"⏰ Время: *{formatted_time}* ({master_tz_name})"
-            )
-
-            await notify_master(data['master_telegram_id'], msg_text)
-        except Exception as e:
-            print(f"WARNING: Failed to notify master: {e}")
-
-        return res.data[0]
-
-    except Exception as e:
-        err_str = str(e).lower()
-        if "duplicate key" in err_str or "violates unique constraint" in err_str:
-            raise HTTPException(409, "Это время только что заняли. Пожалуйста, выберите другое.")
-
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(500, f"Server error: {str(e)}")
-
-
-@api_router.post("/uploads/avatar")
-async def upload_avatar(file: UploadFile = File(...), user=Depends(validate_telegram_data)):
-    file_ext = file.filename.split('.')[-1]
-    filename = f"{user['id']}_{uuid.uuid4()}.{file_ext}"
-    file_bytes = await file.read()
-    try:
-        res = supabase.storage.from_("avatars").upload(
-            path=filename,
-            file=file_bytes,
-            file_options={"content-type": file.content_type}
-        )
-        public_url = supabase.storage.from_("avatars").get_public_url(filename)
-        return {"avatar_url": public_url}
-    except Exception as e:
-        print(f"Storage upload error: {e}")
-        raise HTTPException(500, "Failed to upload image")
-
-
-# --- ВАЖНО: Финальный штрих ---
-# Мы подключаем роутер с префиксом /api.
-# Теперь все ручки доступны по адресу /api/..., как того и ждет фронтенд.
-app.include_router(api_router)
+# --- НОВЫЙ ЭНДПОИНТ: ОТМЕНА ЗАПИСИ ---
+@app.post("/me/appointments/{aid}/cancel")
+async def cancel_appointment(aid: int, user=Depends(validate_telegram_data)):
+    # Ставим статус 'cancelled'
+    res = supabase.table("appointments").update({"status": "cancelled"}) \
+        .eq("id", aid).eq("master_telegram_id", user['id']).execute()
+    return res.data
