@@ -7,11 +7,74 @@ initTelegram();
 const ICONS = {
     Pet: `<svg class="w-10 h-10 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5.172C10 3.782 8.48 2.5 6.5 2.5S3 3.782 3 5.172c0 1.533 1.127 2.8 2.5 3.226V11h2V8.398c1.373-.426 2.5-1.693 2.5-3.226zM21 5.172c0-1.39-1.52-2.672-3.5-2.672S14 3.782 14 5.172c0 1.533 1.127 2.8 2.5 3.226V11h2V8.398c1.373-.426 2.5-1.693 2.5-3.226zM9 13h6c.667 0 1.25.167 1.75.5.5.333 1.25.833 1.25 1.5S17 17 16 19s-2.5 2.5-4 2.5-3-1.5-4-2.5-2-2.5-2-4 .75-1.167 1.25-1.5C8.75 13.167 9.333 13 9 13z"/></svg>`,
     Phone: `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
-    // Иконка Telegram
     Telegram: `<svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.48-1.02-2.38-1.61-1.04-.69-.37-1.07.22-1.68.15-.16 2.74-2.51 2.79-2.72.01-.03.01-.12-.05-.17-.05-.05-.14-.03-.21-.02-.09.02-1.54.98-4.35 2.88-.41.28-.78.42-1.11.41-.36 0-1.05-.2-1.57-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.77-1.15 3.35-1.35 3.73-1.35.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .29z"/></svg>`,
-    // Иконка WhatsApp
     WhatsApp: `<svg class="w-4 h-4 text-green-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.32a8.197 8.197 0 0 1-1.26-4.38c.04-4.54 3.74-8.23 8.25-8.23m4.53 11.38c-.19-.1-.64-.26-1.33-.62-.17-.1-.28-.15-.38.04s-.42.53-.51.64c-.1.11-.19.12-.38.03-.19-.1-.82-.3-1.55-.96-.58-.52-1-.1.17-1.12.35-.11-.16-.06-.29-.06-.4s-.37-.15-.56-.37c-.19-.21-.73-.73-.73-1.77s.75-1.63.98-1.87c.23-.23.49-.29.66-.29.17 0 .34.01.49.07.15.06.33.24.42.44.13.29.43 1.05.47 1.12.04.07.07.16 0 .28-.07.12-.11.19-.22.3-.11.11-.23.24-.33.32-.11.09-.23.19 0 .58.23.39 1 1.65 2.15 2.67.92.82 1.66 1.08 2.27 1.36.19.09.43.19.66.19.38 0 .84-.09 1.17-.38.33-.29.68-1.23.68-1.67 0-.44-.15-.65-.33-.74z"/></svg>`
 };
+
+// =============================================================================
+// UTILS (Toast & Confirm)
+// =============================================================================
+
+function showToast(message: string, type: 'success' | 'error' = 'success') {
+    const toast = document.getElementById('global-toast');
+    const msgEl = document.getElementById('toast-message');
+    const iconEl = document.getElementById('toast-icon');
+    if (!toast || !msgEl || !iconEl) return;
+
+    msgEl.textContent = message;
+    if (type === 'success') {
+        iconEl.textContent = 'check_circle';
+        iconEl.className = 'material-symbols-outlined text-success';
+    } else {
+        iconEl.textContent = 'error';
+        iconEl.className = 'material-symbols-outlined text-error';
+    }
+
+    // Show
+    toast.classList.remove('opacity-0', '-translate-y-4', 'pointer-events-none');
+
+    // Hide after 3s
+    setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-4', 'pointer-events-none');
+    }, 3000);
+}
+
+function showConfirm(message: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('custom-confirm');
+        const box = document.getElementById('confirm-box');
+        const text = document.getElementById('confirm-text');
+        const btnOk = document.getElementById('confirm-btn-ok');
+        const btnCancel = document.getElementById('confirm-btn-cancel');
+
+        if (!modal || !text || !btnOk || !btnCancel || !box) return resolve(false);
+
+        text.textContent = message;
+        modal.classList.remove('hidden');
+        // Small delay to allow transition
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            box.classList.remove('scale-95');
+            box.classList.add('scale-100');
+        }, 10);
+
+        const close = (result: boolean) => {
+            modal.classList.add('opacity-0');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                resolve(result);
+            }, 200);
+            btnOk.onclick = null;
+            btnCancel.onclick = null;
+        };
+
+        btnOk.onclick = () => close(true);
+        btnCancel.onclick = () => close(false);
+    });
+}
+
 
 // =============================================================================
 // 1. PROFILE LOGIC
@@ -31,10 +94,14 @@ const els = {
     avatarInput: document.getElementById('avatar-input') as HTMLInputElement,
     avatarImg: document.getElementById('avatar-img') as HTMLImageElement,
     avatarPlaceholder: document.getElementById('avatar-placeholder') as HTMLElement,
-    successToast: document.getElementById('profile-success-toast') as HTMLElement,
     avatarContainer: document.getElementById('avatar-container') as HTMLElement,
     avatarHint: document.getElementById('avatar-hint') as HTMLElement,
     avatarOverlay: document.getElementById('avatar-overlay') as HTMLElement,
+
+    onboardingScreen: document.getElementById('onboarding-screen') as HTMLElement,
+    regName: document.getElementById('reg-name') as HTMLInputElement,
+    regAddress: document.getElementById('reg-address') as HTMLInputElement,
+    btnFinishReg: document.getElementById('btn-finish-reg') as HTMLButtonElement,
 };
 
 let currentAvatarUrl: string | null = null;
@@ -92,10 +159,10 @@ if(els.btnSave) els.btnSave.onclick = async () => {
                 avatar_url: currentAvatarUrl
             })
         });
-        showSuccessToast();
+        showToast('Профиль сохранен');
         toggleEditMode(false);
     } catch (e) {
-        Telegram.WebApp.showAlert('Ошибка сохранения');
+        showToast('Ошибка сохранения', 'error');
     } finally {
         els.btnSave.innerHTML = originalText;
         els.btnSave.disabled = false;
@@ -117,8 +184,9 @@ if(els.avatarInput) els.avatarInput.onchange = async () => {
         if (!response.ok) throw new Error();
         const res = await response.json();
         if (res.avatar_url) setAvatar(res.avatar_url);
+        showToast('Фото обновлено');
     } catch (e) {
-        Telegram.WebApp.showAlert('Ошибка загрузки фото');
+        showToast('Ошибка загрузки фото', 'error');
     } finally {
         els.avatarImg.style.opacity = '1';
     }
@@ -131,18 +199,12 @@ function setAvatar(url: string) {
     els.avatarPlaceholder.classList.add('hidden');
 }
 
-function showSuccessToast() {
-    if (els.successToast) {
-        els.successToast.classList.remove('hidden');
-        setTimeout(() => els.successToast.classList.add('hidden'), 3000);
-    } else {
-        Telegram.WebApp.showAlert('Сохранено!');
-    }
-}
-
 async function loadProfile() {
     try {
         const data = await apiFetch('/me');
+        if (!data.profile.salon_name) {
+            if(els.onboardingScreen) els.onboardingScreen.classList.remove('hidden');
+        }
         if (data.profile) {
             els.name.value = data.profile.salon_name || '';
             els.address.value = data.profile.address || '';
@@ -151,6 +213,36 @@ async function loadProfile() {
             if (data.profile.avatar_url) setAvatar(data.profile.avatar_url);
         }
     } catch (e) { console.error(e); }
+}
+
+if (els.btnFinishReg) {
+    els.btnFinishReg.onclick = async () => {
+        const name = els.regName.value.trim();
+        const address = els.regAddress.value.trim();
+        if (!name) return showToast('Введите название', 'error');
+
+        els.btnFinishReg.disabled = true;
+        els.btnFinishReg.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span>';
+
+        try {
+            await apiFetch('/me/profile', {
+                method: 'PATCH',
+                body: JSON.stringify({ salon_name: name, address: address })
+            });
+            els.name.value = name;
+            els.address.value = address;
+
+            els.onboardingScreen.style.opacity = '0';
+            setTimeout(() => els.onboardingScreen.classList.add('hidden'), 500);
+            showToast('Салон создан! Теперь добавьте услуги.');
+            document.querySelector<HTMLButtonElement>('[onclick*="services"]')?.click();
+
+        } catch (e) {
+            showToast('Ошибка создания', 'error');
+            els.btnFinishReg.disabled = false;
+            els.btnFinishReg.innerHTML = 'Создать салон <span class="material-symbols-outlined">arrow_forward</span>';
+        }
+    };
 }
 
 
@@ -193,7 +285,6 @@ async function loadServices() {
     try {
         const services = await apiFetch('/me/services');
         srvList.innerHTML = '';
-
         if (services.length === 0) {
             srvList.innerHTML = '<div class="text-center text-text-secondary p-4 opacity-50">Список услуг пуст</div>';
             return;
@@ -203,7 +294,6 @@ async function loadServices() {
             const card = document.createElement('div');
             card.className = 'w-full bg-surface-dark/40 border border-border-dark/50 rounded-xl overflow-hidden transition-all mb-3';
 
-            // Header
             const header = document.createElement('div');
             header.className = 'p-4 flex justify-between items-center transition-colors min-h-[72px] relative';
 
@@ -227,9 +317,11 @@ async function loadServices() {
             const delBtn = document.createElement('button');
             delBtn.className = 'text-text-secondary/40 hover:text-red-400 p-2 rounded-full hover:bg-white/10 transition-colors z-20';
             delBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
-            delBtn.onclick = (e) => {
+            delBtn.onclick = async (e) => {
                 e.stopPropagation();
-                deleteService(s.id);
+                if (await showConfirm('Удалить эту услугу?')) {
+                     deleteService(s.id);
+                }
             };
             actionsDiv.appendChild(delBtn);
 
@@ -278,7 +370,7 @@ async function loadServices() {
 
 if(btnSaveService) btnSaveService.onclick = async () => {
     if (!inpName.value || !inpPrice.value) {
-        Telegram.WebApp.showAlert('Введите название и цену');
+        showToast('Введите название и цену', 'error');
         return;
     }
     btnSaveService.disabled = true;
@@ -294,16 +386,17 @@ if(btnSaveService) btnSaveService.onclick = async () => {
         });
         await loadServices();
         toggleServiceForm(false);
-    } catch(e) { Telegram.WebApp.showAlert('Ошибка сохранения'); }
+        showToast('Услуга добавлена');
+    } catch(e) { showToast('Ошибка сохранения', 'error'); }
     finally { btnSaveService.disabled = false; btnSaveService.textContent = originalText; }
 };
 
 async function deleteService(id: number) {
-    if(!confirm('Удалить эту услугу?')) return;
     try {
         await apiFetch(`/me/services/${id}`, { method: 'DELETE' });
         loadServices();
-    } catch (e) { Telegram.WebApp.showAlert('Ошибка удаления'); }
+        showToast('Услуга удалена');
+    } catch (e) { showToast('Ошибка удаления', 'error'); }
 }
 
 
@@ -417,8 +510,8 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
 
     try {
         await apiFetch('/me/working-hours', { method: 'POST', body: JSON.stringify(payload) });
-        Telegram.WebApp.showAlert('График сохранен!');
-    } catch (e) { Telegram.WebApp.showAlert('Ошибка сохранения графика'); }
+        showToast('График сохранен!');
+    } catch (e) { showToast('Ошибка сохранения', 'error'); }
     finally {
         btnSaveSchedule.innerHTML = originalContent;
         btnSaveSchedule.disabled = false;
@@ -427,7 +520,7 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
 
 
 // =============================================================================
-// 4. APPOINTMENTS LOGIC (NEW: React-style + Smart Messaging)
+// 4. APPOINTMENTS LOGIC
 // =============================================================================
 
 const appList = document.getElementById('appointments-list')!;
@@ -546,9 +639,10 @@ function changeMonth(offset: number) {
         const apps = await apiFetch('/me/appointments');
         (window as any).cachedAppointments = apps;
 
-        // Update busyDates
+        // Update busyDates (FIXED: Filter out cancelled)
         const datesSet = new Set<string>();
         apps.forEach((a: any) => {
+             if (a.status === 'cancelled') return;
              const d = new Date(a.starts_at);
              const y = d.getFullYear();
              const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -569,14 +663,12 @@ function renderAppointmentsList(apps: any[]) {
     if (!appList) return;
     appList.innerHTML = '';
 
-    // ФИЛЬТРАЦИЯ:
-    // 1. По дате (выбранный день)
-    // 2. Исключаем статус 'cancelled' (чтобы отмененные исчезали)
+    // Filter
     const filtered = apps.filter((a: any) => {
         const d = new Date(a.starts_at);
-        const isSameDay = d.toDateString() === selectedDate.toDateString();
-        const isNotCancelled = a.status !== 'cancelled'; // <--- ВАЖНОЕ ДОБАВЛЕНИЕ
-        return isSameDay && isNotCancelled;
+        const sameDay = d.toDateString() === selectedDate.toDateString();
+        const notCancelled = a.status !== 'cancelled';
+        return sameDay && notCancelled;
     });
 
     if (filtered.length === 0) {
@@ -589,7 +681,6 @@ function renderAppointmentsList(apps: any[]) {
     }
 
     filtered.forEach((a: any) => {
-        // ... (остальной код функции без изменений)
         const cardHTML = createRecordCardHTML(a);
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = cardHTML;
@@ -614,8 +705,9 @@ function renderAppointmentsList(apps: any[]) {
                 try {
                     await apiFetch(`/me/appointments/${a.id}/confirm`, { method: 'POST' });
                     (window as any).loadAppointments();
+                    showToast('Запись подтверждена');
                 } catch (e) {
-                    Telegram.WebApp.showAlert('Ошибка');
+                    showToast('Ошибка подтверждения', 'error');
                     btnConfirm.textContent = 'Ошибка';
                 }
             };
@@ -624,17 +716,15 @@ function renderAppointmentsList(apps: any[]) {
         const btnCancel = cardEl.querySelector('.btn-cancel') as HTMLButtonElement;
         if(btnCancel) {
             btnCancel.onclick = async () => {
-               if(confirm('Вы уверены, что хотите отменить запись?')) {
+               if(await showConfirm('Вы уверены, что хотите отменить запись?')) {
                    btnCancel.disabled = true;
                    btnCancel.textContent = '...';
                    try {
                        await apiFetch(`/me/appointments/${a.id}/cancel`, { method: 'POST' });
-                       // После успешной отмены перезагружаем список
-                       // Благодаря новому фильтру запись исчезнет из UI
                        (window as any).loadAppointments();
-                       Telegram.WebApp.showAlert('Запись отменена');
+                       showToast('Запись отменена');
                    } catch (e) {
-                       Telegram.WebApp.showAlert('Не удалось отменить');
+                       showToast('Не удалось отменить', 'error');
                        btnCancel.disabled = false;
                        btnCancel.textContent = 'Отменить';
                    }
@@ -667,7 +757,6 @@ function createRecordCardHTML(record: any) {
     const confirmBtnText = isPending ? 'Подтвердить' : 'Подтверждено';
     const confirmBtnDisabled = isPending ? '' : 'disabled';
 
-    // Determining icon and text for Message button
     const hasUsername = !!record.client_username;
     const msgIcon = hasUsername ? ICONS.Telegram : ICONS.WhatsApp;
     const msgText = hasUsername ? 'Telegram' : 'WhatsApp';
@@ -678,7 +767,6 @@ function createRecordCardHTML(record: any) {
     const clientName = record.client_name || 'Клиент';
     const clientNote = record.comment;
 
-    // Note Section
     const noteHTML = clientNote ? `
         <div class="bg-[#0f1923] rounded-xl p-3 border border-gray-800/50 mt-1">
           <span class="text-[10px] text-blue-400 font-bold uppercase tracking-wider block mb-1">Комментарий клиента</span>
