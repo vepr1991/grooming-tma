@@ -287,4 +287,4 @@ async def upload_avatar(file: UploadFile = File(...), user=Depends(validate_tele
 # --- ВАЖНО: Финальный штрих ---
 # Мы подключаем роутер с префиксом /api.
 # Теперь все ручки доступны по адресу /api/..., как того и ждет фронтенд.
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router)

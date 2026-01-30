@@ -19,8 +19,7 @@ export default defineConfig({
         target: 'http://backend:8000',
         changeOrigin: true,
         secure: false,
-        // rewrite УДАЛЕН.
-        // Запрос "/api/..." передается на бэкенд как есть.
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },
