@@ -3,14 +3,14 @@ import { initTelegram, Telegram } from '../core/tg';
 
 initTelegram();
 
-// --- PROFILE LOGIC ---
+// --- ELEMENTS (PROFILE) ---
 const els = {
     name: document.getElementById('salon-name') as HTMLInputElement,
     address: document.getElementById('address') as HTMLInputElement,
     phone: document.getElementById('phone') as HTMLInputElement,
     desc: document.getElementById('description') as HTMLTextAreaElement,
 
-    // Новые кнопки
+    // Buttons match HTML IDs now
     btnEditMode: document.getElementById('btn-edit-mode') as HTMLButtonElement,
     editActions: document.getElementById('edit-actions') as HTMLElement,
     btnCancel: document.getElementById('btn-cancel') as HTMLButtonElement,
@@ -26,84 +26,48 @@ const els = {
 };
 
 let currentAvatarUrl: string | null = null;
-
-// Хранилище для отмены изменений
-let originalData = {
-    name: '',
-    address: '',
-    phone: '',
-    desc: '',
-    avatarUrl: null as string | null
-};
+let originalData = { name: '', address: '', phone: '', desc: '', avatarUrl: null as string | null };
 
 function toggleEditMode(enable: boolean) {
     const inputs = [els.name, els.address, els.phone, els.desc];
-
     if (enable) {
-        // --- ВХОД В РЕЖИМ РЕДАКТИРОВАНИЯ ---
-
-        // 1. Запоминаем текущие значения (чтобы можно было отменить)
-        originalData.name = els.name.value;
-        originalData.address = els.address.value;
-        originalData.phone = els.phone.value;
-        originalData.desc = els.desc.value;
-        originalData.avatarUrl = currentAvatarUrl;
-
-        // 2. Включаем поля
+        originalData = { name: els.name.value, address: els.address.value, phone: els.phone.value, desc: els.desc.value, avatarUrl: currentAvatarUrl };
         inputs.forEach(inp => inp.removeAttribute('readonly'));
         els.name.focus();
-
-        // 3. Переключаем кнопки
         els.btnEditMode.classList.add('hidden');
         els.editActions.classList.remove('hidden');
-        els.editActions.classList.add('flex'); // Важно вернуть flex
-
-        // 4. Включаем аватарку
+        els.editActions.classList.add('flex');
         els.avatarContainer.classList.remove('pointer-events-none');
         els.avatarHint.classList.remove('opacity-0');
         els.avatarOverlay.classList.remove('hidden');
-
     } else {
-        // --- ВЫХОД ИЗ РЕЖИМА (ПРОСМОТР) ---
-
-        // 1. Блокируем поля
         inputs.forEach(inp => inp.setAttribute('readonly', 'true'));
-
-        // 2. Переключаем кнопки
         els.editActions.classList.add('hidden');
         els.editActions.classList.remove('flex');
         els.btnEditMode.classList.remove('hidden');
-
-        // 3. Отключаем аватарку
         els.avatarContainer.classList.add('pointer-events-none');
         els.avatarHint.classList.add('opacity-0');
         els.avatarOverlay.classList.add('hidden');
     }
 }
 
-// Кнопка "Редактировать"
-els.btnEditMode.onclick = () => {
-    toggleEditMode(true);
-};
+if(els.btnEditMode) els.btnEditMode.onclick = () => toggleEditMode(true);
 
-// Кнопка "Отмена"
-els.btnCancel.onclick = () => {
-    // Возвращаем старые значения
+if(els.btnCancel) els.btnCancel.onclick = () => {
     els.name.value = originalData.name;
     els.address.value = originalData.address;
     els.phone.value = originalData.phone;
     els.desc.value = originalData.desc;
     if (originalData.avatarUrl) setAvatar(originalData.avatarUrl);
-
     toggleEditMode(false);
 };
 
 function showSuccessToast() {
     if (els.successToast) {
         els.successToast.classList.remove('hidden');
-        setTimeout(() => {
-            els.successToast.classList.add('hidden');
-        }, 3000);
+        setTimeout(() => els.successToast.classList.add('hidden'), 3000);
+    } else {
+        Telegram.WebApp.showAlert('Сохранено!');
     }
 }
 
@@ -115,16 +79,9 @@ async function loadProfile() {
             els.address.value = data.profile.address || '';
             els.phone.value = data.profile.phone || '';
             els.desc.value = data.profile.description || '';
-
-            if (data.profile.avatar_url) {
-                setAvatar(data.profile.avatar_url);
-                // Сохраняем в originalData на случай, если нажмут "Редактировать" сразу после загрузки
-                originalData.avatarUrl = data.profile.avatar_url;
-            }
+            if (data.profile.avatar_url) setAvatar(data.profile.avatar_url);
         }
-    } catch (e) {
-        console.error(e);
-    }
+    } catch (e) { console.error(e); }
 }
 
 function setAvatar(url: string) {
@@ -134,45 +91,29 @@ function setAvatar(url: string) {
     els.avatarPlaceholder.classList.add('hidden');
 }
 
-els.avatarInput.onchange = async () => {
+if(els.avatarInput) els.avatarInput.onchange = async () => {
     const file = els.avatarInput.files?.[0];
     if (!file) return;
-
     els.avatarImg.style.opacity = '0.5';
-
     const formData = new FormData();
     formData.append('file', file);
-
     try {
         const response = await fetch(`${BASE_URL}/uploads/avatar`, {
             method: 'POST',
             headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData },
             body: formData
         });
-
-        if (!response.ok) throw new Error('Upload failed');
-
+        if (!response.ok) throw new Error();
         const res = await response.json();
-        if (res.avatar_url) {
-            setAvatar(res.avatar_url);
-        }
-    } catch (e) {
-        Telegram.WebApp.showAlert('Ошибка загрузки фото');
-    } finally {
-        els.avatarImg.style.opacity = '1';
-    }
+        if (res.avatar_url) setAvatar(res.avatar_url);
+    } catch (e) { Telegram.WebApp.showAlert('Ошибка загрузки фото'); }
+    finally { els.avatarImg.style.opacity = '1'; }
 };
 
-// Кнопка "Сохранить"
-els.btnSave.onclick = async () => {
+if(els.btnSave) els.btnSave.onclick = async () => {
     els.btnSave.disabled = true;
-    const originalContent = els.btnSave.innerHTML;
-    els.btnSave.textContent = '';
-    const spinner = document.createElement('span');
-    spinner.className = 'material-symbols-outlined animate-spin text-[20px]';
-    spinner.textContent = 'progress_activity';
-    els.btnSave.appendChild(spinner);
-
+    const originalText = els.btnSave.innerHTML;
+    els.btnSave.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>';
     try {
         await apiFetch('/me/profile', {
             method: 'PATCH',
@@ -185,221 +126,113 @@ els.btnSave.onclick = async () => {
             })
         });
         showSuccessToast();
-        toggleEditMode(false); // Выходим из режима редактирования
-    } catch (e) {
-        Telegram.WebApp.showAlert('Ошибка сохранения');
-    } finally {
-        els.btnSave.innerHTML = originalContent;
-        els.btnSave.disabled = false;
-    }
+        toggleEditMode(false);
+    } catch (e) { Telegram.WebApp.showAlert('Ошибка сохранения'); }
+    finally { els.btnSave.innerHTML = originalText; els.btnSave.disabled = false; }
 };
 
-// ... (Далее весь остальной код: Services, Schedule, Appointments - без изменений) ...
-// Скопируйте его из предыдущего файла, он не менялся.
-
+// --- SERVICES & SLOT DURATION ---
 const srvList = document.getElementById('services-list')!;
-const btnAddSrv = document.getElementById('btn-add-service') as HTMLButtonElement;
+const addServiceForm = document.getElementById('add-service-form') as HTMLElement;
+const btnToggleAdd = document.getElementById('btn-toggle-add-service') as HTMLButtonElement;
+const btnCancelAdd = document.getElementById('btn-cancel-service') as HTMLButtonElement;
+const btnSaveService = document.getElementById('btn-save-service') as HTMLButtonElement;
+const globalSlotDuration = document.getElementById('global-slot-duration') as HTMLSelectElement;
+
+// Inputs
+const inpName = document.getElementById('new-srv-name') as HTMLInputElement;
+const inpPrice = document.getElementById('new-srv-price') as HTMLInputElement;
+const inpDur = document.getElementById('new-srv-dur') as HTMLInputElement;
+
+function toggleServiceForm(show: boolean) {
+    if (show) {
+        addServiceForm.classList.remove('hidden');
+        addServiceForm.classList.add('flex');
+        btnToggleAdd.classList.add('hidden');
+        inpName.focus();
+    } else {
+        addServiceForm.classList.add('hidden');
+        addServiceForm.classList.remove('flex');
+        btnToggleAdd.classList.remove('hidden');
+        inpName.value = ''; inpPrice.value = ''; inpDur.value = '60';
+    }
+}
+if(btnToggleAdd) btnToggleAdd.onclick = () => toggleServiceForm(true);
+if(btnCancelAdd) btnCancelAdd.onclick = () => toggleServiceForm(false);
 
 async function loadServices() {
     try {
         const services = await apiFetch('/me/services');
         srvList.innerHTML = '';
-
         services.forEach((s: any) => {
-            const div = document.createElement('div');
-            div.className = 'bg-surface-dark/40 p-4 rounded-xl border border-border-dark/50 flex justify-between items-center shadow-sm';
-
-            const leftDiv = document.createElement('div');
-            const nameDiv = document.createElement('div');
-            nameDiv.className = 'font-bold text-white text-base';
-            nameDiv.textContent = s.name;
-            const durDiv = document.createElement('div');
-            durDiv.className = 'text-text-secondary text-sm flex items-center gap-1 mt-1';
-            const icon = document.createElement('span');
-            icon.className = 'material-symbols-outlined text-[14px]';
-            icon.textContent = 'schedule';
-            const timeText = document.createTextNode(` ${s.duration_min} мин`);
-            durDiv.appendChild(icon);
-            durDiv.appendChild(timeText);
-            leftDiv.appendChild(nameDiv);
-            leftDiv.appendChild(durDiv);
-
-            const rightDiv = document.createElement('div');
-            rightDiv.className = 'flex items-center gap-4';
-            const priceDiv = document.createElement('div');
-            priceDiv.className = 'font-bold text-primary text-lg';
-            priceDiv.textContent = `${s.price} ₸`;
+            const card = document.createElement('div');
+            card.className = 'bg-surface-dark/40 border border-border-dark/50 p-4 rounded-xl flex justify-between items-center shadow-sm hover:border-border-dark transition-colors';
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'flex flex-col gap-1';
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'text-white font-bold text-base';
+            nameSpan.textContent = s.name;
+            const detailsSpan = document.createElement('span');
+            detailsSpan.className = 'text-text-secondary text-sm font-medium';
+            detailsSpan.textContent = `${s.duration_min} мин • ${s.price} ₸`;
+            infoDiv.appendChild(nameSpan);
+            infoDiv.appendChild(detailsSpan);
             const delBtn = document.createElement('button');
-            delBtn.className = 'text-red-400/60 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 flex items-center';
+            delBtn.className = 'text-text-secondary/40 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 flex items-center';
             const delIcon = document.createElement('span');
             delIcon.className = 'material-symbols-outlined';
             delIcon.textContent = 'delete';
             delBtn.appendChild(delIcon);
             delBtn.onclick = () => deleteService(s.id);
-            rightDiv.appendChild(priceDiv);
-            rightDiv.appendChild(delBtn);
-
-            div.appendChild(leftDiv);
-            div.appendChild(rightDiv);
-            srvList.appendChild(div);
+            card.appendChild(infoDiv);
+            card.appendChild(delBtn);
+            srvList.appendChild(card);
         });
-    } catch (e) {
-        srvList.textContent = 'Ошибка загрузки услуг';
-    }
+    } catch (e) { srvList.innerHTML = '<div class="text-center text-text-secondary p-4">Ошибка</div>'; }
 }
 
-async function createService() {
-    const nameInput = document.getElementById('new-srv-name') as HTMLInputElement;
-    const priceInput = document.getElementById('new-srv-price') as HTMLInputElement;
-    const durInput = document.getElementById('new-srv-dur') as HTMLInputElement;
-
-    if (!nameInput.value || !priceInput.value) return;
-
-    btnAddSrv.disabled = true;
+if(btnSaveService) btnSaveService.onclick = async () => {
+    if (!inpName.value || !inpPrice.value) return;
+    btnSaveService.disabled = true;
+    const originalText = btnSaveService.textContent;
+    btnSaveService.textContent = '...';
     try {
         await apiFetch('/me/services', {
             method: 'POST',
-            body: JSON.stringify({
-                name: nameInput.value,
-                price: parseFloat(priceInput.value),
-                duration_min: parseInt(durInput.value) || 60
-            })
+            body: JSON.stringify({ name: inpName.value, price: parseFloat(inpPrice.value), duration_min: parseInt(inpDur.value) || 60 })
         });
-        nameInput.value = '';
-        priceInput.value = '';
-        loadServices();
-    } catch(e) {
-        Telegram.WebApp.showAlert('Ошибка создания');
-    } finally {
-        btnAddSrv.disabled = false;
-    }
-}
-btnAddSrv.onclick = createService;
+        await loadServices();
+        toggleServiceForm(false);
+    } catch(e) { Telegram.WebApp.showAlert('Ошибка'); }
+    finally { btnSaveService.disabled = false; btnSaveService.textContent = originalText; }
+};
 
 async function deleteService(id: number) {
-    if(!confirm('Удалить услугу?')) return;
+    if(!confirm('Удалить?')) return;
     await apiFetch(`/me/services/${id}`, { method: 'DELETE' });
     loadServices();
 }
 
-// --- APPOINTMENTS LOGIC ---
-const appList = document.getElementById('appointments-list')!;
-(window as any).loadAppointments = async () => {
-    appList.innerHTML = '';
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'text-center text-text-secondary py-4';
-    loadingDiv.textContent = 'Загрузка...';
-    appList.appendChild(loadingDiv);
-
-    try {
-        const apps = await apiFetch('/me/appointments');
-        appList.innerHTML = '';
-        if (apps.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'text-center text-text-secondary py-8 bg-surface-dark/40 rounded-xl border border-border-dark/50';
-            emptyDiv.textContent = 'Записей пока нет';
-            appList.appendChild(emptyDiv);
-            return;
-        }
-
-        apps.forEach((a: any) => {
-            const card = document.createElement('div');
-            card.className = 'bg-surface-dark/40 p-4 rounded-xl border border-border-dark/50 space-y-3 shadow-sm';
-
-            const dateStr = new Date(a.starts_at).toLocaleString('ru-RU', { month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' });
-
-            const header = document.createElement('div');
-            header.className = 'flex justify-between items-start border-b border-border-dark/30 pb-2';
-
-            const dateGroup = document.createElement('div');
-            dateGroup.className = 'flex items-center gap-2';
-            const calendarIcon = document.createElement('span');
-            calendarIcon.className = 'material-symbols-outlined text-primary';
-            calendarIcon.textContent = 'calendar_month';
-            const dateText = document.createElement('div');
-            dateText.className = 'font-bold text-white capitalize';
-            dateText.textContent = dateStr;
-            dateGroup.appendChild(calendarIcon);
-            dateGroup.appendChild(dateText);
-
-            const statusBadge = document.createElement('div');
-            const statusClass = a.status === 'confirmed' ? 'text-green-400 bg-green-400/10' : 'text-orange-400 bg-orange-400/10';
-            statusBadge.className = `px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide ${statusClass}`;
-            statusBadge.textContent = a.status;
-            header.appendChild(dateGroup);
-            header.appendChild(statusBadge);
-
-            const grid = document.createElement('div');
-            grid.className = 'grid grid-cols-2 gap-4 text-sm pt-1';
-
-            const clientCol = document.createElement('div');
-            const clientLabel = document.createElement('div');
-            clientLabel.className = 'text-[11px] text-text-secondary uppercase mb-1';
-            clientLabel.textContent = 'Клиент';
-            const clientPhone = document.createElement('div');
-            clientPhone.className = 'text-white font-medium';
-            clientPhone.textContent = a.client_phone;
-            const petName = document.createElement('div');
-            petName.className = 'text-white font-bold mt-1';
-            petName.textContent = a.pet_name;
-            clientCol.appendChild(clientLabel);
-            clientCol.appendChild(clientPhone);
-            clientCol.appendChild(petName);
-
-            const serviceCol = document.createElement('div');
-            serviceCol.className = 'text-right';
-            const serviceLabel = document.createElement('div');
-            serviceLabel.className = 'text-[11px] text-text-secondary uppercase mb-1';
-            serviceLabel.textContent = 'Услуга';
-            const serviceName = document.createElement('div');
-            serviceName.className = 'text-white font-medium truncate';
-            serviceName.textContent = a.services?.name || '---';
-            serviceCol.appendChild(serviceLabel);
-            serviceCol.appendChild(serviceName);
-
-            grid.appendChild(clientCol);
-            grid.appendChild(serviceCol);
-            card.appendChild(header);
-            card.appendChild(grid);
-
-            if (a.status === 'pending') {
-                const confirmBtn = document.createElement('button');
-                confirmBtn.className = 'w-full mt-2 bg-primary/10 text-primary py-2.5 rounded-lg font-bold text-sm hover:bg-primary/20 transition-all border border-primary/20';
-                confirmBtn.textContent = 'Подтвердить запись';
-                confirmBtn.onclick = async () => {
-                    confirmBtn.textContent = 'Обработка...';
-                    confirmBtn.disabled = true;
-                    await apiFetch(`/me/appointments/${a.id}/confirm`, { method: 'POST' });
-                    (window as any).loadAppointments();
-                };
-                card.appendChild(confirmBtn);
-            }
-            appList.appendChild(card);
-        });
-    } catch (e) {
-        appList.textContent = 'Ошибка загрузки записей';
-    }
+// AUTO-SAVE SLOT DURATION
+if(globalSlotDuration) globalSlotDuration.onchange = async () => {
+    // Сохранение требует отправки ВСЕГО расписания, поэтому мы берем данные из (скрытого) контейнера графика
+    // Это немного "хак", но работает надежно без переписывания бэкенда
+    const btnSaveSchedule = document.getElementById('btn-save-schedule') as HTMLButtonElement;
+    if(btnSaveSchedule) btnSaveSchedule.click(); // Симулируем клик по сохранению графика
 };
 
 // --- SCHEDULE LOGIC ---
 const scheduleContainer = document.getElementById('schedule-container')!;
 const btnSaveSchedule = document.getElementById('btn-save-schedule') as HTMLButtonElement;
-const globalSlotDuration = document.getElementById('global-slot-duration') as HTMLSelectElement;
 const daysMap = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
 async function loadSchedule() {
     scheduleContainer.innerHTML = '';
-    const loading = document.createElement('div');
-    loading.className = 'p-4 text-center text-text-secondary';
-    loading.textContent = 'Загрузка...';
-    scheduleContainer.appendChild(loading);
     try {
         const existing = await apiFetch('/me/working-hours');
         if (existing && existing.length > 0) globalSlotDuration.value = existing[0].slot_minutes.toString();
         renderScheduleForm(existing);
-    } catch (e) {
-        scheduleContainer.textContent = 'Ошибка загрузки графика';
-    }
+    } catch (e) { console.error(e); }
 }
 
 function renderScheduleForm(existingData: any[]) {
@@ -445,14 +278,19 @@ function renderScheduleForm(existingData: any[]) {
         settingsDiv.appendChild(timeEnd);
 
         checkbox.onchange = () => {
+            const opacityClass = 'opacity-50';
+            const grayscaleClass = 'grayscale';
+            const pointerEventsClass = 'pointer-events-none';
+            const lineThroughClass = 'line-through';
+
             if (checkbox.checked) {
-                row.classList.remove('opacity-50');
-                settingsDiv.classList.remove('pointer-events-none', 'grayscale', 'opacity-50');
-                label.classList.remove('line-through', 'decoration-text-secondary', 'text-text-secondary');
+                row.classList.remove(opacityClass);
+                settingsDiv.classList.remove(pointerEventsClass, grayscaleClass, opacityClass);
+                label.classList.remove(lineThroughClass, 'decoration-text-secondary', 'text-text-secondary');
             } else {
-                row.classList.add('opacity-50');
-                settingsDiv.classList.add('pointer-events-none', 'grayscale', 'opacity-50');
-                label.classList.add('line-through', 'decoration-text-secondary', 'text-text-secondary');
+                row.classList.add(opacityClass);
+                settingsDiv.classList.add(pointerEventsClass, grayscaleClass, opacityClass);
+                label.classList.add(lineThroughClass, 'decoration-text-secondary', 'text-text-secondary');
             }
         };
         row.appendChild(leftSide);
@@ -461,12 +299,12 @@ function renderScheduleForm(existingData: any[]) {
     }
 }
 
-btnSaveSchedule.onclick = async () => {
+if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
     btnSaveSchedule.disabled = true;
     const originalContent = btnSaveSchedule.innerHTML;
     btnSaveSchedule.textContent = '';
     const spinner = document.createElement('span');
-    spinner.className = 'material-symbols-outlined animate-spin mr-2 text-[20px]';
+    spinner.className = 'material-symbols-outlined animate-spin text-[20px]';
     spinner.textContent = 'progress_activity';
     btnSaveSchedule.appendChild(spinner);
 
@@ -492,7 +330,12 @@ btnSaveSchedule.onclick = async () => {
 
     try {
         await apiFetch('/me/working-hours', { method: 'POST', body: JSON.stringify(payload) });
-        Telegram.WebApp.showAlert('График успешно обновлен!');
+        if (document.activeElement === globalSlotDuration) {
+             // Если вызвано изменением слота - тихое сохранение, без алерта
+             Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        } else {
+             Telegram.WebApp.showAlert('График сохранен!');
+        }
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка сохранения графика');
     } finally {
@@ -501,6 +344,56 @@ btnSaveSchedule.onclick = async () => {
     }
 };
 
+// --- APPOINTMENTS LOGIC ---
+const appList = document.getElementById('appointments-list')!;
+(window as any).loadAppointments = async () => {
+    appList.innerHTML = '<div class="text-center text-text-secondary py-4">Загрузка...</div>';
+    try {
+        const apps = await apiFetch('/me/appointments');
+        appList.innerHTML = '';
+        if (apps.length === 0) {
+            appList.innerHTML = '<div class="text-center text-text-secondary py-8 bg-surface-dark/40 rounded-xl border border-border-dark/50">Записей пока нет</div>';
+            return;
+        }
+        apps.forEach((a: any) => {
+            const card = document.createElement('div');
+            card.className = 'bg-surface-dark/40 p-4 rounded-xl border border-border-dark/50 space-y-3 shadow-sm';
+            const dateStr = new Date(a.starts_at).toLocaleString('ru-RU', { month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' });
+            // Header
+            const header = document.createElement('div');
+            header.className = 'flex justify-between items-start border-b border-border-dark/30 pb-2';
+            const dateGroup = document.createElement('div');
+            dateGroup.className = 'flex items-center gap-2';
+            dateGroup.innerHTML = `<span class="material-symbols-outlined text-primary">calendar_month</span><div class="font-bold text-white capitalize">${dateStr}</div>`;
+            const statusClass = a.status === 'confirmed' ? 'text-green-400 bg-green-400/10' : 'text-orange-400 bg-orange-400/10';
+            header.innerHTML += `<div class="${statusClass} px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide">${a.status}</div>`;
+            header.prepend(dateGroup);
+            // Grid
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-2 gap-4 text-sm pt-1';
+            grid.innerHTML = `
+                <div><div class="text-[11px] text-text-secondary uppercase mb-1">Клиент</div><div class="text-white font-medium">${a.client_phone}</div><div class="text-white font-bold mt-1">${a.pet_name}</div></div>
+                <div class="text-right"><div class="text-[11px] text-text-secondary uppercase mb-1">Услуга</div><div class="text-white font-medium truncate">${a.services?.name || '---'}</div></div>
+            `;
+            card.appendChild(header);
+            card.appendChild(grid);
+            if (a.status === 'pending') {
+                const confirmBtn = document.createElement('button');
+                confirmBtn.className = 'w-full mt-2 bg-primary/10 text-primary py-2.5 rounded-lg font-bold text-sm hover:bg-primary/20 transition-all border border-primary/20';
+                confirmBtn.textContent = 'Подтвердить запись';
+                confirmBtn.onclick = async () => {
+                    confirmBtn.textContent = '...'; confirmBtn.disabled = true;
+                    await apiFetch(`/me/appointments/${a.id}/confirm`, { method: 'POST' });
+                    (window as any).loadAppointments();
+                };
+                card.appendChild(confirmBtn);
+            }
+            appList.appendChild(card);
+        });
+    } catch (e) { appList.innerHTML = 'Ошибка'; }
+};
+
+// INIT
 loadProfile();
 loadServices();
 loadSchedule();
