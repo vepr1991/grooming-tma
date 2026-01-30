@@ -3,6 +3,14 @@ import { initTelegram, Telegram } from '../core/tg';
 
 initTelegram();
 
+// --- ICONS (SVG) ---
+// Используем строки SVG для иконок, чтобы не тянуть лишние библиотеки
+const ICONS = {
+    Pet: `<svg class="w-10 h-10 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5.172C10 3.782 8.48 2.5 6.5 2.5S3 3.782 3 5.172c0 1.533 1.127 2.8 2.5 3.226V11h2V8.398c1.373-.426 2.5-1.693 2.5-3.226zM21 5.172c0-1.39-1.52-2.672-3.5-2.672S14 3.782 14 5.172c0 1.533 1.127 2.8 2.5 3.226V11h2V8.398c1.373-.426 2.5-1.693 2.5-3.226zM9 13h6c.667 0 1.25.167 1.75.5.5.333 1.25.833 1.25 1.5S17 17 16 19s-2.5 2.5-4 2.5-3-1.5-4-2.5-2-2.5-2-4 .75-1.167 1.25-1.5C8.75 13.167 9.333 13 9 13z"/></svg>`,
+    Phone: `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+    Message: `<svg class="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`
+};
+
 // =============================================================================
 // 1. PROFILE LOGIC
 // =============================================================================
@@ -13,22 +21,18 @@ const els = {
     phone: document.getElementById('phone') as HTMLInputElement,
     desc: document.getElementById('description') as HTMLTextAreaElement,
 
-    // Buttons & Modes
     btnEditMode: document.getElementById('btn-edit-mode') as HTMLButtonElement,
     editActions: document.getElementById('edit-actions') as HTMLElement,
     btnCancel: document.getElementById('btn-cancel') as HTMLButtonElement,
     btnSave: document.getElementById('btn-save-profile') as HTMLButtonElement,
 
-    // Avatar
     avatarInput: document.getElementById('avatar-input') as HTMLInputElement,
     avatarImg: document.getElementById('avatar-img') as HTMLImageElement,
     avatarPlaceholder: document.getElementById('avatar-placeholder') as HTMLElement,
+    successToast: document.getElementById('profile-success-toast') as HTMLElement,
     avatarContainer: document.getElementById('avatar-container') as HTMLElement,
     avatarHint: document.getElementById('avatar-hint') as HTMLElement,
     avatarOverlay: document.getElementById('avatar-overlay') as HTMLElement,
-
-    // Toast
-    successToast: document.getElementById('profile-success-toast') as HTMLElement,
 };
 
 let currentAvatarUrl: string | null = null;
@@ -37,45 +41,29 @@ let originalData = { name: '', address: '', phone: '', desc: '', avatarUrl: null
 function toggleEditMode(enable: boolean) {
     const inputs = [els.name, els.address, els.phone, els.desc];
     if (enable) {
-        // Save state for cancel
         originalData = {
-            name: els.name.value,
-            address: els.address.value,
-            phone: els.phone.value,
-            desc: els.desc.value,
-            avatarUrl: currentAvatarUrl
+            name: els.name.value, address: els.address.value, phone: els.phone.value,
+            desc: els.desc.value, avatarUrl: currentAvatarUrl
         };
-
-        // Enable inputs
         inputs.forEach(inp => inp.removeAttribute('readonly'));
         els.name.focus();
-
-        // Switch buttons
         els.btnEditMode.classList.add('hidden');
         els.editActions.classList.remove('hidden');
         els.editActions.classList.add('flex');
-
-        // Enable avatar
         els.avatarContainer.classList.remove('pointer-events-none');
         els.avatarHint.classList.remove('opacity-0');
         els.avatarOverlay.classList.remove('hidden');
     } else {
-        // Disable inputs
         inputs.forEach(inp => inp.setAttribute('readonly', 'true'));
-
-        // Switch buttons
         els.editActions.classList.add('hidden');
         els.editActions.classList.remove('flex');
         els.btnEditMode.classList.remove('hidden');
-
-        // Disable avatar
         els.avatarContainer.classList.add('pointer-events-none');
         els.avatarHint.classList.add('opacity-0');
         els.avatarOverlay.classList.add('hidden');
     }
 }
 
-// Event Listeners for Profile
 if(els.btnEditMode) els.btnEditMode.onclick = () => toggleEditMode(true);
 
 if(els.btnCancel) els.btnCancel.onclick = () => {
@@ -176,7 +164,7 @@ const btnSaveService = document.getElementById('btn-save-service') as HTMLButton
 
 // Inputs
 const inpName = document.getElementById('new-srv-name') as HTMLInputElement;
-const inpDesc = document.getElementById('new-srv-desc') as HTMLTextAreaElement; // <--- Description Input
+const inpDesc = document.getElementById('new-srv-desc') as HTMLTextAreaElement;
 const inpPrice = document.getElementById('new-srv-price') as HTMLInputElement;
 const inpDur = document.getElementById('new-srv-dur') as HTMLInputElement;
 
@@ -190,9 +178,8 @@ function toggleServiceForm(show: boolean) {
         addServiceForm.classList.add('hidden');
         addServiceForm.classList.remove('flex');
         btnToggleAdd.classList.remove('hidden');
-        // Clear inputs
         inpName.value = '';
-        inpDesc.value = ''; // Clear description
+        inpDesc.value = '';
         inpPrice.value = '';
         inpDur.value = '60';
     }
@@ -212,14 +199,12 @@ async function loadServices() {
 
         services.forEach((s: any) => {
             const card = document.createElement('div');
-            // w-full и mb-3
             card.className = 'w-full bg-surface-dark/40 border border-border-dark/50 rounded-xl overflow-hidden transition-all mb-3';
 
-            // --- HEADER ---
+            // Header
             const header = document.createElement('div');
             header.className = 'p-4 flex justify-between items-center transition-colors min-h-[72px] relative';
 
-            // Left Side
             const infoDiv = document.createElement('div');
             infoDiv.className = 'flex flex-col gap-1 pr-10 overflow-hidden';
 
@@ -234,7 +219,6 @@ async function loadServices() {
             infoDiv.appendChild(nameSpan);
             infoDiv.appendChild(detailsSpan);
 
-            // Right Side (Actions)
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2';
 
@@ -247,7 +231,6 @@ async function loadServices() {
             };
             actionsDiv.appendChild(delBtn);
 
-            // Expand Arrow
             let chevron: HTMLElement | null = null;
             const hasDescription = s.description && s.description.trim() !== '';
 
@@ -259,7 +242,6 @@ async function loadServices() {
                 chevron.textContent = 'expand_more';
                 arrowBtn.appendChild(chevron);
                 actionsDiv.appendChild(arrowBtn);
-
                 header.classList.add('cursor-pointer', 'hover:bg-white/5');
             }
 
@@ -267,7 +249,6 @@ async function loadServices() {
             header.appendChild(actionsDiv);
             card.appendChild(header);
 
-            // --- BODY (Description) ---
             if (hasDescription) {
                 const body = document.createElement('div');
                 body.className = 'hidden px-4 pb-4 pt-3 text-sm text-text-secondary/80 border-t border-border-dark/30 bg-white/5 break-words whitespace-normal w-full leading-relaxed';
@@ -286,7 +267,6 @@ async function loadServices() {
                     }
                 };
             }
-
             srvList.appendChild(card);
         });
     } catch (e) {
@@ -299,29 +279,21 @@ if(btnSaveService) btnSaveService.onclick = async () => {
         Telegram.WebApp.showAlert('Введите название и цену');
         return;
     }
-
     btnSaveService.disabled = true;
     const originalText = btnSaveService.textContent;
     btnSaveService.textContent = '...';
-
     try {
         await apiFetch('/me/services', {
             method: 'POST',
             body: JSON.stringify({
-                name: inpName.value,
-                description: inpDesc.value, // <--- Send Description
-                price: parseFloat(inpPrice.value),
-                duration_min: parseInt(inpDur.value) || 60
+                name: inpName.value, description: inpDesc.value,
+                price: parseFloat(inpPrice.value), duration_min: parseInt(inpDur.value) || 60
             })
         });
         await loadServices();
         toggleServiceForm(false);
-    } catch(e) {
-        Telegram.WebApp.showAlert('Ошибка сохранения');
-    } finally {
-        btnSaveService.disabled = false;
-        btnSaveService.textContent = originalText;
-    }
+    } catch(e) { Telegram.WebApp.showAlert('Ошибка сохранения'); }
+    finally { btnSaveService.disabled = false; btnSaveService.textContent = originalText; }
 };
 
 async function deleteService(id: number) {
@@ -329,9 +301,7 @@ async function deleteService(id: number) {
     try {
         await apiFetch(`/me/services/${id}`, { method: 'DELETE' });
         loadServices();
-    } catch (e) {
-        Telegram.WebApp.showAlert('Ошибка удаления');
-    }
+    } catch (e) { Telegram.WebApp.showAlert('Ошибка удаления'); }
 }
 
 
@@ -359,7 +329,6 @@ function renderScheduleForm(existingData: any[]) {
         const row = document.createElement('div');
         row.className = `group flex items-center gap-3 bg-background-dark px-4 py-4 min-h-[64px] hover:bg-surface-dark transition-colors border-b border-border-dark/30 last:border-0 ${!isActive ? 'opacity-50' : ''}`;
 
-        // Left Checkbox & Label
         const leftSide = document.createElement('div');
         leftSide.className = 'flex items-center gap-3 flex-1 min-w-0';
 
@@ -379,10 +348,8 @@ function renderScheduleForm(existingData: any[]) {
         leftSide.appendChild(checkWrap);
         leftSide.appendChild(label);
 
-        // Time Inputs
         const settingsDiv = document.createElement('div');
         settingsDiv.className = `flex items-center gap-2 shrink-0 transition-all ${!isActive ? 'pointer-events-none grayscale opacity-50' : ''}`;
-
         const createTimeInput = (val: string, cls: string) => {
             const inp = document.createElement('input');
             inp.type = 'time';
@@ -427,7 +394,7 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
     btnSaveSchedule.appendChild(spinner);
 
     const payload: any[] = [];
-    const slotMin = 30; // Hardcoded slot duration (30 min)
+    const slotMin = 30; // Hardcoded slot duration
     const checkboxes = document.querySelectorAll('#schedule-container input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
     checkboxes.forEach((cb) => {
         if (cb.checked) {
@@ -449,9 +416,8 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
     try {
         await apiFetch('/me/working-hours', { method: 'POST', body: JSON.stringify(payload) });
         Telegram.WebApp.showAlert('График сохранен!');
-    } catch (e) {
-        Telegram.WebApp.showAlert('Ошибка сохранения графика');
-    } finally {
+    } catch (e) { Telegram.WebApp.showAlert('Ошибка сохранения графика'); }
+    finally {
         btnSaveSchedule.innerHTML = originalContent;
         btnSaveSchedule.disabled = false;
     }
@@ -459,7 +425,7 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
 
 
 // =============================================================================
-// 4. APPOINTMENTS LOGIC (UPDATED: Calendar + New Design)
+// 4. APPOINTMENTS LOGIC (NEW: React-style implementation)
 // =============================================================================
 
 const appList = document.getElementById('appointments-list')!;
@@ -481,7 +447,6 @@ const WEEK_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 function renderCalendar() {
     if (!calendarContainer) return;
 
-    // 1. Calculations
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
 
@@ -495,13 +460,10 @@ function renderCalendar() {
     const todayStr = new Date().toDateString();
     const selectedStr = selectedDate.toDateString();
 
-    // 2. HTML Generation
     let html = `
         <div class="px-4 pt-4 pb-2">
             <div class="flex justify-between items-center mb-3 px-2">
-                <h2 class="text-lg font-bold text-white capitalize">
-                    ${MONTH_NAMES[month]} ${year}
-                </h2>
+                <h2 class="text-lg font-bold text-white capitalize">${MONTH_NAMES[month]} ${year}</h2>
                 <div class="flex gap-1">
                     <button id="cal-prev" class="p-1.5 hover:bg-gray-800 rounded-lg text-gray-400 active:bg-gray-700 transition-colors">
                         <span class="material-symbols-outlined text-[20px]">chevron_left</span>
@@ -511,24 +473,19 @@ function renderCalendar() {
                     </button>
                 </div>
             </div>
-
             <div class="grid grid-cols-7 gap-1 text-center mb-2">
                 ${WEEK_DAYS.map(d => `<span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">${d}</span>`).join('')}
             </div>
-
             <div class="grid grid-cols-7 gap-1">
     `;
 
-    // Empty slots
     for (let i = 0; i < firstDay; i++) {
         html += `<div class="h-9"></div>`;
     }
 
-    // Days
     for (let i = 1; i <= daysInMonth; i++) {
         const currentDate = new Date(year, month, i);
         const currentStr = currentDate.toDateString();
-
         // YYYY-MM-DD for checking busyDates
         const y = currentDate.getFullYear();
         const m = String(currentDate.getMonth() + 1).padStart(2, '0');
@@ -540,30 +497,20 @@ function renderCalendar() {
         const hasRecords = busyDates.includes(isoDate);
 
         let classes = "h-9 flex flex-col items-center justify-center rounded-lg text-sm font-medium transition-all relative ";
-
-        if (isSelected) {
-            classes += "bg-primary text-white shadow-md shadow-primary/20 scale-105";
-        } else if (isToday) {
-            classes += "text-primary border border-primary/30";
-        } else {
-            classes += "text-gray-400 hover:bg-gray-800";
-        }
+        if (isSelected) classes += "bg-primary text-white shadow-md shadow-primary/20 scale-105";
+        else if (isToday) classes += "text-primary border border-primary/30";
+        else classes += "text-gray-400 hover:bg-gray-800";
 
         const dotColor = isSelected ? 'bg-white' : 'bg-primary';
         const dot = hasRecords ? `<span class="w-1 h-1 rounded-full absolute bottom-1.5 ${dotColor}"></span>` : '';
 
-        html += `
-            <button class="day-btn ${classes}" data-day="${i}">
-                <span>${i}</span>
-                ${dot}
-            </button>
-        `;
+        html += `<button class="day-btn ${classes}" data-day="${i}"><span>${i}</span>${dot}</button>`;
     }
 
     html += `</div></div>`;
     calendarContainer.innerHTML = html;
 
-    // 3. Event Listeners
+    // Listeners
     const btnPrev = document.getElementById('cal-prev');
     const btnNext = document.getElementById('cal-next');
     if (btnPrev) btnPrev.onclick = () => changeMonth(-1);
@@ -584,7 +531,7 @@ function changeMonth(offset: number) {
     renderCalendar();
 }
 
-// --- APPOINTMENTS LOADING & RENDERING ---
+// --- APPOINTMENTS RENDERER ---
 
 // Cache appointments to filter on client side
 (window as any).cachedAppointments = [];
@@ -597,7 +544,7 @@ function changeMonth(offset: number) {
         const apps = await apiFetch('/me/appointments');
         (window as any).cachedAppointments = apps;
 
-        // Update busyDates for calendar
+        // Update busyDates
         const datesSet = new Set<string>();
         apps.forEach((a: any) => {
              const d = new Date(a.starts_at);
@@ -620,7 +567,7 @@ function renderAppointmentsList(apps: any[]) {
     if (!appList) return;
     appList.innerHTML = '';
 
-    // Filter by selectedDate
+    // Filter
     const filtered = apps.filter((a: any) => {
         const d = new Date(a.starts_at);
         return d.toDateString() === selectedDate.toDateString();
@@ -666,8 +613,19 @@ function renderAppointmentsList(apps: any[]) {
         const btnCancel = cardEl.querySelector('.btn-cancel') as HTMLButtonElement;
         if(btnCancel) {
             btnCancel.onclick = async () => {
-               if(confirm('Отменить запись?')) {
-                   Telegram.WebApp.showAlert('Запрос на отмену отправлен');
+               if(confirm('Вы уверены, что хотите отменить запись?')) {
+                   btnCancel.disabled = true;
+                   btnCancel.textContent = '...';
+                   try {
+                       // Предполагаем, что эндпоинт отмены добавлен на бэке
+                       await apiFetch(`/me/appointments/${a.id}/cancel`, { method: 'POST' });
+                       (window as any).loadAppointments();
+                       Telegram.WebApp.showAlert('Запись отменена');
+                   } catch (e) {
+                       Telegram.WebApp.showAlert('Не удалось отменить (нет API?)');
+                       btnCancel.disabled = false;
+                       btnCancel.textContent = 'Отменить';
+                   }
                }
             };
         }
@@ -681,67 +639,82 @@ function createRecordCardHTML(record: any) {
     const dateObj = new Date(record.starts_at);
     const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
-    // Design Logic
-    const borderClass = isPending ? 'border-l-orange-500 shadow-orange-500/5' : 'border-l-green-500 shadow-green-500/5';
+    // Styles
+    const borderClass = isPending
+        ? 'border-l-4 border-l-orange-500 shadow-lg shadow-orange-500/5'
+        : 'border-l-4 border-l-green-500 shadow-lg shadow-green-500/5';
+
     const dotClass = isPending ? 'bg-orange-500 animate-pulse' : 'bg-green-500';
     const statusBg = isPending ? 'bg-orange-500 text-orange-500' : 'bg-green-500 text-green-500';
     const statusText = isPending ? 'ОЖИДАЕТ' : 'ГОТОВО';
 
     const confirmBtnStyle = isPending
-        ? 'bg-primary text-white hover:bg-primary/90 shadow-primary/20 shadow-lg'
-        : 'bg-green-600/20 text-green-400 border border-green-600/30 cursor-default shadow-none';
+        ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-600/20'
+        : 'bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/30';
 
     const confirmBtnText = isPending ? 'Подтвердить' : 'Подтверждено';
     const confirmBtnDisabled = isPending ? '' : 'disabled';
 
-    const avatarHTML = `
-        <div class="w-16 h-16 rounded-2xl overflow-hidden bg-gray-800 flex-shrink-0 border border-gray-700 shadow-inner flex items-center justify-center text-3xl">
-           🐶
-        </div>
-    `;
+    const petBreed = record.pet_breed || 'Не указана';
+    const serviceName = record.services?.name || 'Услуга удалена';
+    const clientName = record.client_name || 'Клиент';
+    const clientNote = record.comment;
+
+    // Note Section
+    const noteHTML = clientNote ? `
+        <div class="bg-[#0f1923] rounded-xl p-3 border border-gray-800/50 mt-1">
+          <span class="text-[10px] text-blue-400 font-bold uppercase tracking-wider block mb-1">Комментарий клиента</span>
+          <p class="text-xs text-gray-400 leading-relaxed">${clientNote}</p>
+        </div>` : '';
 
     return `
-    <div class="relative bg-[#1a2632] rounded-2xl p-4 mb-3 border border-gray-800 flex flex-col gap-4 transition-all duration-300 border-l-4 shadow-lg ${borderClass}">
-
+    <div class="relative bg-[#1a2632] rounded-2xl p-4 border border-gray-800 flex flex-col gap-4 transition-all duration-300 ${borderClass}">
       <div class="flex justify-between items-center">
         <div class="flex items-center gap-1.5">
           <span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span>
           <span class="text-gray-200 font-bold text-xs">${timeStr}</span>
         </div>
-        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-opacity-10 ${statusBg}">
-          ${statusText}
-        </span>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-opacity-10 ${statusBg}">${statusText}</span>
       </div>
 
-      <div class="flex gap-4 items-center">
-        ${avatarHTML}
-        <div class="flex-grow min-w-0">
-          <h3 class="text-lg font-bold truncate text-white leading-tight">${record.pet_name}</h3>
-          <p class="text-gray-400 text-xs truncate mb-1.5">
-            ${record.services?.name || 'Услуга'} • ${record.pet_breed || 'Порода'}
-          </p>
-          <div class="flex items-center gap-2">
-            <span class="text-[11px] text-gray-500 truncate font-medium">Клиент</span>
-            <a href="tel:${record.client_phone}" class="text-primary text-[11px] font-bold hover:text-blue-300 flex items-center gap-1 transition-colors hover:underline">
-              <span class="material-symbols-outlined text-[12px]">call</span>
+      <div class="flex gap-4 items-start">
+        <div class="w-20 h-20 rounded-2xl bg-gray-800 flex-shrink-0 border border-gray-700 shadow-inner flex items-center justify-center text-gray-600">
+          ${ICONS.Pet}
+        </div>
+        <div class="flex-grow min-w-0 space-y-1">
+          <div class="flex flex-col">
+            <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Кличка</span>
+            <h3 class="text-lg font-bold truncate text-white leading-tight">${record.pet_name}</h3>
+          </div>
+          <div class="grid grid-cols-2 gap-2 mt-1">
+            <div class="flex flex-col">
+              <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Услуга</span>
+              <p class="text-gray-200 text-[11px] font-medium truncate">${serviceName}</p>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Порода</span>
+              <p class="text-gray-200 text-[11px] font-medium truncate">${petBreed}</p>
+            </div>
+          </div>
+          <div class="pt-2 flex items-center gap-2">
+            <span class="text-[11px] text-gray-400 truncate font-medium">${clientName}</span>
+            <a href="tel:${record.client_phone}" class="text-blue-400 text-[11px] font-bold hover:text-blue-300 flex items-center gap-1 transition-colors">
+              ${ICONS.Phone}
               ${record.client_phone}
             </a>
           </div>
         </div>
       </div>
 
+      ${noteHTML}
+
       <div class="flex flex-col gap-2">
         <div class="flex gap-2">
-          <button class="btn-cancel flex-1 py-2.5 rounded-xl bg-gray-800/50 text-gray-400 font-bold text-xs hover:bg-red-900/20 hover:text-red-400 border border-gray-700 active:scale-[0.98] transition-all">
-            Отменить
-          </button>
-          <button ${confirmBtnDisabled} class="btn-confirm flex-[2] py-2.5 rounded-xl font-bold text-xs active:scale-[0.98] transition-all ${confirmBtnStyle}">
-            ${confirmBtnText}
-          </button>
+          <button class="btn-cancel flex-1 py-2.5 rounded-xl bg-gray-800/50 text-gray-400 font-bold text-xs hover:bg-red-900/20 hover:text-red-400 border border-gray-700 active:scale-[0.98] transition-all">Отменить</button>
+          <button ${confirmBtnDisabled} class="btn-confirm flex-[2] py-2.5 rounded-xl font-bold text-xs active:scale-[0.98] transition-all shadow-lg ${confirmBtnStyle}">${confirmBtnText}</button>
         </div>
         <button class="btn-msg w-full py-2.5 rounded-xl bg-gray-800/30 text-gray-300 font-bold text-xs border border-gray-700 flex items-center justify-center gap-2 hover:bg-gray-700 hover:text-white transition-all active:scale-[0.98]">
-          <span class="material-symbols-outlined text-[14px] text-primary">chat</span>
-          Написать
+          ${ICONS.Message} Написать
         </button>
       </div>
     </div>
