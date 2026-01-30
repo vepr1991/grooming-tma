@@ -58,14 +58,58 @@
 
         <main class="flex-1 overflow-y-auto pb-24">
             
-            <div id="tab-profile" class="tab-content active p-4 space-y-4">
-                <h3 class="text-lg font-bold">Настройки салона</h3>
-                <input type="text" id="salon-name" placeholder="Название салона" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50">
-                <input type="text" id="address" placeholder="Адрес" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50">
-                <input type="tel" id="phone" placeholder="Телефон для связи" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50">
-                <textarea id="description" placeholder="Описание" rows="3" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50"></textarea>
-                <button id="btn-save-profile" class="w-full bg-primary hover:bg-primary/90 text-white h-12 rounded-xl font-bold transition-all shadow-lg shadow-primary/20 mt-4">
-                    Сохранить профиль
+            <div id="tab-profile" class="tab-content active p-4 pb-20 space-y-5">
+                <div class="flex flex-col items-center justify-center mt-2">
+                    <div class="relative group cursor-pointer" onclick="document.getElementById('avatar-input').click()">
+                        <div class="w-28 h-28 rounded-full bg-surface-dark border-2 border-border-dark flex items-center justify-center overflow-hidden shadow-lg relative">
+                            <img id="avatar-img" src="" alt="Avatar" class="w-full h-full object-cover hidden">
+                            <span id="avatar-placeholder" class="material-symbols-outlined text-4xl text-text-secondary">storefront</span>
+                            <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span class="material-symbols-outlined text-white text-3xl">photo_camera</span>
+                            </div>
+                        </div>
+                        <div class="absolute bottom-0 right-0 bg-primary text-white rounded-full p-1.5 border-4 border-background-dark flex items-center shadow-sm">
+                            <span class="material-symbols-outlined text-[18px]">edit</span>
+                        </div>
+                    </div>
+                    <p class="text-text-secondary text-xs mt-3">Нажмите, чтобы загрузить логотип</p>
+                    <input type="file" id="avatar-input" accept="image/*" class="hidden">
+                </div>
+
+                <div class="space-y-4">
+                    <div class="space-y-1">
+                        <label class="text-xs text-text-secondary uppercase font-bold ml-1">Название салона</label>
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-3 top-3.5 text-text-secondary">badge</span>
+                            <input type="text" id="salon-name" placeholder="Мой Груминг" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50 transition-all">
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-xs text-text-secondary uppercase font-bold ml-1">Телефон</label>
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-3 top-3.5 text-text-secondary">call</span>
+                            <input type="tel" id="phone" placeholder="+7 (700) 000-00-00" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50 transition-all">
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-xs text-text-secondary uppercase font-bold ml-1">Адрес</label>
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-3 top-3.5 text-text-secondary">location_on</span>
+                            <input type="text" id="address" placeholder="ул. Абая, 10" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50 transition-all">
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-xs text-text-secondary uppercase font-bold ml-1">Описание</label>
+                        <textarea id="description" placeholder="Расскажите о ваших услугах..." rows="3" class="w-full bg-surface-dark border border-border-dark rounded-xl text-white px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-text-secondary/50 transition-all"></textarea>
+                    </div>
+                </div>
+
+                <button id="btn-save-profile" class="w-full bg-primary hover:bg-primary/90 active:scale-[0.98] text-white h-12 rounded-xl font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 mt-2">
+                    <span class="material-symbols-outlined">save</span>
+                    Сохранить изменения
                 </button>
             </div>
 
