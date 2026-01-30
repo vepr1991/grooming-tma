@@ -141,26 +141,6 @@
 
             <div id="tab-services" class="tab-content p-4 space-y-4 pb-24">
 
-                <div class="bg-surface-dark/40 border border-border-dark/50 p-4 rounded-xl mb-6">
-                    <label class="block text-white font-medium mb-3 flex items-center gap-2 text-sm">
-                        <span class="material-symbols-outlined text-primary text-[20px]">tune</span>
-                        Шаг записи (глобальный)
-                    </label>
-                    <div class="relative">
-                        <select id="global-slot-duration" class="w-full bg-background-dark border border-border-dark text-white rounded-lg h-12 pl-4 pr-10 appearance-none focus:ring-primary focus:border-primary cursor-pointer">
-                            <option value="15">15 минут</option>
-                            <option value="30" selected>30 минут</option>
-                            <option value="45">45 минут</option>
-                            <option value="60">60 минут</option>
-                            <option value="90">90 минут</option>
-                        </select>
-                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-text-secondary">
-                            <span class="material-symbols-outlined">expand_more</span>
-                        </div>
-                    </div>
-                    <p class="text-text-secondary/60 text-xs mt-2">Влияет на сетку календаря.</p>
-                </div>
-
                 <div class="flex justify-between items-center mb-2">
                     <h3 class="text-white text-xl font-bold">Список услуг</h3>
                     <button id="btn-toggle-add-service" class="bg-primary hover:bg-primary/90 text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 active:scale-95 transition-all shadow-lg shadow-primary/20">
@@ -223,7 +203,7 @@
             btns.forEach(btn => {
                 if(btn.getAttribute('onclick').includes(tabName)) btn.classList.add('active');
             });
-            const titles = { 'profile': 'Данные салона', 'services': 'Услуги и настройки', 'schedule': 'График работы', 'appointments': 'Журнал записей' };
+            const titles = { 'profile': 'Данные салона', 'services': 'Услуги', 'schedule': 'График работы', 'appointments': 'Журнал записей' };
             const titleEl = document.getElementById('header-title');
             if(titleEl) titleEl.innerText = titles[tabName] || 'Админка';
             if (tabName === 'appointments' && window.loadAppointments) window.loadAppointments();

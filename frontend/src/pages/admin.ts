@@ -10,7 +10,7 @@ const els = {
     phone: document.getElementById('phone') as HTMLInputElement,
     desc: document.getElementById('description') as HTMLTextAreaElement,
 
-    // Buttons match HTML IDs now
+    // Buttons
     btnEditMode: document.getElementById('btn-edit-mode') as HTMLButtonElement,
     editActions: document.getElementById('edit-actions') as HTMLElement,
     btnCancel: document.getElementById('btn-cancel') as HTMLButtonElement,
@@ -131,13 +131,12 @@ if(els.btnSave) els.btnSave.onclick = async () => {
     finally { els.btnSave.innerHTML = originalText; els.btnSave.disabled = false; }
 };
 
-// --- SERVICES & SLOT DURATION ---
+// --- SERVICES ---
 const srvList = document.getElementById('services-list')!;
 const addServiceForm = document.getElementById('add-service-form') as HTMLElement;
 const btnToggleAdd = document.getElementById('btn-toggle-add-service') as HTMLButtonElement;
 const btnCancelAdd = document.getElementById('btn-cancel-service') as HTMLButtonElement;
 const btnSaveService = document.getElementById('btn-save-service') as HTMLButtonElement;
-const globalSlotDuration = document.getElementById('global-slot-duration') as HTMLSelectElement;
 
 // Inputs
 const inpName = document.getElementById('new-srv-name') as HTMLInputElement;
@@ -213,14 +212,6 @@ async function deleteService(id: number) {
     loadServices();
 }
 
-// AUTO-SAVE SLOT DURATION
-if(globalSlotDuration) globalSlotDuration.onchange = async () => {
-    // Сохранение требует отправки ВСЕГО расписания, поэтому мы берем данные из (скрытого) контейнера графика
-    // Это немного "хак", но работает надежно без переписывания бэкенда
-    const btnSaveSchedule = document.getElementById('btn-save-schedule') as HTMLButtonElement;
-    if(btnSaveSchedule) btnSaveSchedule.click(); // Симулируем клик по сохранению графика
-};
-
 // --- SCHEDULE LOGIC ---
 const scheduleContainer = document.getElementById('schedule-container')!;
 const btnSaveSchedule = document.getElementById('btn-save-schedule') as HTMLButtonElement;
@@ -230,7 +221,6 @@ async function loadSchedule() {
     scheduleContainer.innerHTML = '';
     try {
         const existing = await apiFetch('/me/working-hours');
-        if (existing && existing.length > 0) globalSlotDuration.value = existing[0].slot_minutes.toString();
         renderScheduleForm(existing);
     } catch (e) { console.error(e); }
 }
@@ -309,7 +299,7 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
     btnSaveSchedule.appendChild(spinner);
 
     const payload: any[] = [];
-    const slotMin = parseInt(globalSlotDuration.value) || 60;
+    const slotMin = 30; // Hardcoded slot duration (30 min)
     const checkboxes = document.querySelectorAll('#schedule-container input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
     checkboxes.forEach((cb) => {
         if (cb.checked) {
@@ -330,12 +320,7 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
 
     try {
         await apiFetch('/me/working-hours', { method: 'POST', body: JSON.stringify(payload) });
-        if (document.activeElement === globalSlotDuration) {
-             // Если вызвано изменением слота - тихое сохранение, без алерта
-             Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-        } else {
-             Telegram.WebApp.showAlert('График сохранен!');
-        }
+        Telegram.WebApp.showAlert('График сохранен!');
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка сохранения графика');
     } finally {
