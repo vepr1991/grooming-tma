@@ -211,20 +211,21 @@ async function loadServices() {
         }
 
         services.forEach((s: any) => {
-            // Главный контейнер карточки
+            // Главный контейнер
             const card = document.createElement('div');
-            card.className = 'bg-surface-dark/40 border border-border-dark/50 rounded-xl overflow-hidden transition-all';
+            // w-full важен, чтобы карточка не сжималась
+            card.className = 'w-full bg-surface-dark/40 border border-border-dark/50 rounded-xl overflow-hidden transition-all mb-3';
 
-            // --- ВЕРХНЯЯ ЧАСТЬ (Всегда видна) ---
+            // --- ВЕРХНЯЯ ЧАСТЬ ---
             const header = document.createElement('div');
-            header.className = 'p-4 flex justify-between items-center cursor-pointer hover:bg-white/5 transition-colors';
+            header.className = 'p-4 flex justify-between items-center transition-colors min-h-[72px] relative';
 
-            // Левая часть (Название + Инфо)
+            // Левая часть
             const infoDiv = document.createElement('div');
-            infoDiv.className = 'flex flex-col gap-1';
+            infoDiv.className = 'flex flex-col gap-1 pr-10 overflow-hidden'; // pr-10 чтобы текст не наехал на стрелку
 
             const nameSpan = document.createElement('span');
-            nameSpan.className = 'text-white font-bold text-base leading-tight';
+            nameSpan.className = 'text-white font-bold text-base leading-tight truncate'; // truncate обрежет слишком длинное название
             nameSpan.textContent = s.name;
 
             const detailsSpan = document.createElement('span');
@@ -236,54 +237,66 @@ async function loadServices() {
 
             // Правая часть (Кнопки)
             const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'flex items-center gap-2';
+            actionsDiv.className = 'flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2';
 
-            // Кнопка удаления (всегда видна)
+            // Кнопка удаления
             const delBtn = document.createElement('button');
-            delBtn.className = 'text-text-secondary/40 hover:text-red-400 p-2 rounded-full hover:bg-white/10 transition-colors z-10';
+            delBtn.className = 'text-text-secondary/40 hover:text-red-400 p-2 rounded-full hover:bg-white/10 transition-colors z-20';
             delBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
             delBtn.onclick = (e) => {
-                e.stopPropagation(); // Чтобы клик не раскрывал карточку
+                e.stopPropagation();
                 deleteService(s.id);
             };
+            actionsDiv.appendChild(delBtn);
 
             // Стрелочка (если есть описание)
             let chevron: HTMLElement | null = null;
-            if (s.description && s.description.trim() !== '') {
+            const hasDescription = s.description && s.description.trim() !== '';
+
+            if (hasDescription) {
+                // Добавляем иконку стрелки
+                const arrowBtn = document.createElement('div');
+                arrowBtn.className = 'p-1 text-text-secondary/50';
                 chevron = document.createElement('span');
-                chevron.className = 'material-symbols-outlined text-text-secondary/50 transition-transform duration-200';
+                chevron.className = 'material-symbols-outlined transition-transform duration-200 block';
                 chevron.textContent = 'expand_more';
-                actionsDiv.appendChild(chevron);
+                arrowBtn.appendChild(chevron);
+                actionsDiv.appendChild(arrowBtn);
+
+                // Делаем шапку кликабельной
+                header.classList.add('cursor-pointer', 'hover:bg-white/5');
             }
 
-            actionsDiv.appendChild(delBtn);
             header.appendChild(infoDiv);
             header.appendChild(actionsDiv);
             card.appendChild(header);
 
-            // --- НИЖНЯЯ ЧАСТЬ (Описание, скрыто по умолчанию) ---
-            if (s.description && s.description.trim() !== '') {
+            // --- НИЖНЯЯ ЧАСТЬ (ОПИСАНИЕ) ---
+            if (hasDescription) {
                 const body = document.createElement('div');
-                body.className = 'hidden px-4 pb-4 pt-0 text-sm text-text-secondary/80 leading-relaxed border-t border-border-dark/30 mt-2';
+                // ВАЖНО: break-words и w-full исправляют вылет за границы
+                body.className = 'hidden px-4 pb-4 pt-3 text-sm text-text-secondary/80 border-t border-border-dark/30 bg-white/5 break-words whitespace-normal w-full leading-relaxed';
                 body.textContent = s.description;
+
                 card.appendChild(body);
 
-                // Логика раскрытия по клику на шапку
+                // Логика клика
                 header.onclick = () => {
                     const isHidden = body.classList.contains('hidden');
                     if (isHidden) {
-                        body.classList.remove('hidden'); // Показываем текст
-                        body.classList.add('block', 'animate-in', 'fade-in', 'slide-in-from-top-1');
-                        if (chevron) chevron.style.transform = 'rotate(180deg)'; // Крутим стрелку
+                        body.classList.remove('hidden');
+                        // Небольшая анимация появления
+                        body.animate([
+                            { opacity: 0, transform: 'translateY(-5px)' },
+                            { opacity: 1, transform: 'translateY(0)' }
+                        ], { duration: 200, easing: 'ease-out' });
+
+                        if (chevron) chevron.style.transform = 'rotate(180deg)';
                     } else {
-                        body.classList.add('hidden'); // Скрываем
-                        body.classList.remove('block');
-                        if (chevron) chevron.style.transform = 'rotate(0deg)'; // Возвращаем стрелку
+                        body.classList.add('hidden');
+                        if (chevron) chevron.style.transform = 'rotate(0deg)';
                     }
                 };
-            } else {
-                // Если описания нет, делаем курсор обычным (не кликабельным)
-                header.classList.remove('cursor-pointer', 'hover:bg-white/5');
             }
 
             srvList.appendChild(card);
