@@ -9,8 +9,13 @@ const els = {
     address: document.getElementById('address') as HTMLInputElement,
     phone: document.getElementById('phone') as HTMLInputElement,
     desc: document.getElementById('description') as HTMLTextAreaElement,
-    btnSave: document.getElementById('btn-save-profile') as HTMLButtonElement
+    btnSave: document.getElementById('btn-save-profile') as HTMLButtonElement,
+    avatarInput: document.getElementById('avatar-input') as HTMLInputElement,
+    avatarImg: document.getElementById('avatar-img') as HTMLImageElement,
+    avatarPlaceholder: document.getElementById('avatar-placeholder') as HTMLElement
 };
+
+let currentAvatarUrl: string | null = null;
 
 async function loadProfile() {
     try {
@@ -20,14 +25,66 @@ async function loadProfile() {
             els.address.value = data.profile.address || '';
             els.phone.value = data.profile.phone || '';
             els.desc.value = data.profile.description || '';
+            
+            if (data.profile.avatar_url) {
+                setAvatar(data.profile.avatar_url);
+            }
         }
     } catch (e) {
         console.error(e);
     }
 }
 
+function setAvatar(url: string) {
+    currentAvatarUrl = url;
+    els.avatarImg.src = url;
+    els.avatarImg.classList.remove('hidden');
+    els.avatarPlaceholder.classList.add('hidden');
+}
+
+// Загрузка аватарки
+els.avatarInput.onchange = async () => {
+    const file = els.avatarInput.files?.[0];
+    if (!file) return;
+
+    els.avatarImg.style.opacity = '0.5';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const response = await fetch('/api/uploads/avatar', {
+            method: 'POST',
+            headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData },
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('Upload failed');
+        
+        const res = await response.json();
+        if (res.avatar_url) {
+            setAvatar(res.avatar_url);
+            Telegram.WebApp.showAlert('Фото загружено!');
+        }
+    } catch (e) {
+        Telegram.WebApp.showAlert('Ошибка загрузки фото');
+        console.error(e);
+    } finally {
+        els.avatarImg.style.opacity = '1';
+    }
+};
+
 els.btnSave.onclick = async () => {
-    els.btnSave.textContent = 'Сохранение...';
+    els.btnSave.disabled = true;
+    const originalText = els.btnSave.innerHTML;
+    // Безопасный лоадер
+    els.btnSave.textContent = '';
+    const spinner = document.createElement('span');
+    spinner.className = 'material-symbols-outlined animate-spin mr-2 align-middle';
+    spinner.textContent = 'progress_activity';
+    els.btnSave.appendChild(spinner);
+    els.btnSave.appendChild(document.createTextNode(' Сохранение...'));
+
     try {
         await apiFetch('/me/profile', {
             method: 'PATCH',
@@ -35,14 +92,16 @@ els.btnSave.onclick = async () => {
                 salon_name: els.name.value,
                 address: els.address.value,
                 phone: els.phone.value,
-                description: els.desc.value
+                description: els.desc.value,
+                avatar_url: currentAvatarUrl
             })
         });
-        Telegram.WebApp.showAlert('Профиль сохранен!');
+        Telegram.WebApp.showAlert('Профиль успешно сохранен!');
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка сохранения');
     } finally {
-        els.btnSave.textContent = 'Сохранить профиль';
+        els.btnSave.innerHTML = originalText;
+        els.btnSave.disabled = false;
     }
 };
 
@@ -53,13 +112,12 @@ const btnAddSrv = document.getElementById('btn-add-service') as HTMLButtonElemen
 async function loadServices() {
     try {
         const services = await apiFetch('/me/services');
-        srvList.innerHTML = ''; // Очистка контейнера допустима, если мы в него ничего пользовательского не вставляем
+        srvList.innerHTML = '';
         
         services.forEach((s: any) => {
             const div = document.createElement('div');
             div.className = 'bg-surface-dark p-4 rounded-xl border border-border-dark/40 flex justify-between items-center shadow-sm';
 
-            // Левая колонка
             const leftDiv = document.createElement('div');
             
             const nameDiv = document.createElement('div');
@@ -74,14 +132,12 @@ async function loadServices() {
             icon.textContent = 'schedule';
             
             const timeText = document.createTextNode(` ${s.duration_min} мин`);
-            
             durDiv.appendChild(icon);
             durDiv.appendChild(timeText);
             
             leftDiv.appendChild(nameDiv);
             leftDiv.appendChild(durDiv);
 
-            // Правая колонка
             const rightDiv = document.createElement('div');
             rightDiv.className = 'flex items-center gap-4';
 
@@ -91,11 +147,9 @@ async function loadServices() {
 
             const delBtn = document.createElement('button');
             delBtn.className = 'text-red-400/70 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 flex items-center';
-            
             const delIcon = document.createElement('span');
             delIcon.className = 'material-symbols-outlined';
             delIcon.textContent = 'delete';
-            
             delBtn.appendChild(delIcon);
             delBtn.onclick = () => deleteService(s.id);
 
@@ -145,7 +199,7 @@ async function deleteService(id: number) {
     loadServices();
 }
 
-// --- APPOINTMENTS LOGIC (SAFE NO INNERHTML) ---
+// --- APPOINTMENTS LOGIC (NO INNERHTML) ---
 const appList = document.getElementById('appointments-list')!;
 
 (window as any).loadAppointments = async () => {
@@ -175,21 +229,18 @@ const appList = document.getElementById('appointments-list')!;
                 month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit'
             });
 
-            // --- Header: Date and Status ---
+            // Header
             const header = document.createElement('div');
             header.className = 'flex justify-between items-start border-b border-border-dark/30 pb-2';
 
             const dateGroup = document.createElement('div');
             dateGroup.className = 'flex items-center gap-2';
-            
             const calendarIcon = document.createElement('span');
             calendarIcon.className = 'material-symbols-outlined text-primary';
             calendarIcon.textContent = 'calendar_month';
-            
             const dateText = document.createElement('div');
             dateText.className = 'font-bold text-white capitalize';
             dateText.textContent = dateStr;
-            
             dateGroup.appendChild(calendarIcon);
             dateGroup.appendChild(dateText);
 
@@ -201,41 +252,32 @@ const appList = document.getElementById('appointments-list')!;
             header.appendChild(dateGroup);
             header.appendChild(statusBadge);
 
-            // --- Body: Info Grid ---
+            // Grid
             const grid = document.createElement('div');
             grid.className = 'grid grid-cols-2 gap-4 text-sm pt-1';
 
-            // Left: Client
             const clientCol = document.createElement('div');
-            
             const clientLabel = document.createElement('div');
             clientLabel.className = 'text-[11px] text-text-secondary uppercase';
             clientLabel.textContent = 'Клиент';
-            
             const clientPhone = document.createElement('div');
             clientPhone.className = 'text-white font-medium';
             clientPhone.textContent = a.client_phone;
-            
             const petName = document.createElement('div');
             petName.className = 'text-white font-bold mt-1';
-            petName.textContent = a.pet_name; // Safe from XSS
-
+            petName.textContent = a.pet_name;
             clientCol.appendChild(clientLabel);
             clientCol.appendChild(clientPhone);
             clientCol.appendChild(petName);
 
-            // Right: Service
             const serviceCol = document.createElement('div');
             serviceCol.className = 'text-right';
-            
             const serviceLabel = document.createElement('div');
             serviceLabel.className = 'text-[11px] text-text-secondary uppercase';
             serviceLabel.textContent = 'Услуга';
-            
             const serviceName = document.createElement('div');
             serviceName.className = 'text-white font-medium truncate';
             serviceName.textContent = a.services?.name || '---';
-
             serviceCol.appendChild(serviceLabel);
             serviceCol.appendChild(serviceName);
 
@@ -245,7 +287,6 @@ const appList = document.getElementById('appointments-list')!;
             card.appendChild(header);
             card.appendChild(grid);
 
-            // --- Footer: Action Button ---
             if (a.status === 'pending') {
                 const confirmBtn = document.createElement('button');
                 confirmBtn.className = 'w-full mt-2 bg-primary/10 text-primary py-2.5 rounded-lg font-bold text-sm hover:bg-primary/20 transition-all border border-primary/20';
@@ -270,7 +311,6 @@ const appList = document.getElementById('appointments-list')!;
 const scheduleContainer = document.getElementById('schedule-container')!;
 const btnSaveSchedule = document.getElementById('btn-save-schedule') as HTMLButtonElement;
 const globalSlotDuration = document.getElementById('global-slot-duration') as HTMLSelectElement;
-
 const daysMap = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
 async function loadSchedule() {
@@ -298,11 +338,9 @@ function renderScheduleForm(existingData: any[]) {
         const dayData = existingData.find((d: any) => d.day_of_week === i);
         const isActive = !!dayData;
 
-        // Row container
         const row = document.createElement('div');
         row.className = `group flex items-center gap-3 bg-background-dark px-4 py-4 min-h-[64px] hover:bg-surface-dark transition-colors ${!isActive ? 'opacity-50' : ''}`;
 
-        // Left side
         const leftSide = document.createElement('div');
         leftSide.className = 'flex items-center gap-3 flex-1 min-w-0';
 
@@ -324,7 +362,6 @@ function renderScheduleForm(existingData: any[]) {
         leftSide.appendChild(checkWrap);
         leftSide.appendChild(label);
 
-        // Right side
         const settingsDiv = document.createElement('div');
         settingsDiv.className = `flex items-center gap-2 shrink-0 transition-all ${!isActive ? 'pointer-events-none grayscale opacity-50' : ''}`;
 
@@ -348,7 +385,6 @@ function renderScheduleForm(existingData: any[]) {
         settingsDiv.appendChild(sep);
         settingsDiv.appendChild(timeEnd);
 
-        // Event listener
         checkbox.onchange = () => {
             if (checkbox.checked) {
                 row.classList.remove('opacity-50');
@@ -370,7 +406,6 @@ function renderScheduleForm(existingData: any[]) {
 btnSaveSchedule.onclick = async () => {
     btnSaveSchedule.disabled = true;
     const originalContent = btnSaveSchedule.innerHTML;
-    // Безопасный спиннер через createElement
     btnSaveSchedule.textContent = '';
     const spinner = document.createElement('span');
     spinner.className = 'material-symbols-outlined animate-spin mr-2 align-middle';
@@ -409,10 +444,7 @@ btnSaveSchedule.onclick = async () => {
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка сохранения графика');
     } finally {
-        btnSaveSchedule.innerHTML = ''; // Сброс
-        // Восстанавливаем оригинальный HTML кнопки (или можно пересоздать элементы)
-        // Для простоты вернем HTML, так как это константа внутри кода, а не user input
-        btnSaveSchedule.innerHTML = originalContent; 
+        btnSaveSchedule.innerHTML = originalContent;
         btnSaveSchedule.disabled = false;
     }
 };
