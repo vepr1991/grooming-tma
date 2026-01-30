@@ -3,26 +3,32 @@ import { initTelegram, Telegram } from '../core/tg';
 
 initTelegram();
 
-// --- ELEMENTS (PROFILE) ---
+// =============================================================================
+// 1. PROFILE LOGIC
+// =============================================================================
+
 const els = {
     name: document.getElementById('salon-name') as HTMLInputElement,
     address: document.getElementById('address') as HTMLInputElement,
     phone: document.getElementById('phone') as HTMLInputElement,
     desc: document.getElementById('description') as HTMLTextAreaElement,
 
-    // Buttons
+    // Buttons & Modes
     btnEditMode: document.getElementById('btn-edit-mode') as HTMLButtonElement,
     editActions: document.getElementById('edit-actions') as HTMLElement,
     btnCancel: document.getElementById('btn-cancel') as HTMLButtonElement,
     btnSave: document.getElementById('btn-save-profile') as HTMLButtonElement,
 
+    // Avatar
     avatarInput: document.getElementById('avatar-input') as HTMLInputElement,
     avatarImg: document.getElementById('avatar-img') as HTMLImageElement,
     avatarPlaceholder: document.getElementById('avatar-placeholder') as HTMLElement,
-    successToast: document.getElementById('profile-success-toast') as HTMLElement,
     avatarContainer: document.getElementById('avatar-container') as HTMLElement,
     avatarHint: document.getElementById('avatar-hint') as HTMLElement,
-    avatarOverlay: document.getElementById('avatar-overlay') as HTMLElement
+    avatarOverlay: document.getElementById('avatar-overlay') as HTMLElement,
+
+    // Toast
+    successToast: document.getElementById('profile-success-toast') as HTMLElement,
 };
 
 let currentAvatarUrl: string | null = null;
@@ -31,26 +37,45 @@ let originalData = { name: '', address: '', phone: '', desc: '', avatarUrl: null
 function toggleEditMode(enable: boolean) {
     const inputs = [els.name, els.address, els.phone, els.desc];
     if (enable) {
-        originalData = { name: els.name.value, address: els.address.value, phone: els.phone.value, desc: els.desc.value, avatarUrl: currentAvatarUrl };
+        // Save state for cancel
+        originalData = {
+            name: els.name.value,
+            address: els.address.value,
+            phone: els.phone.value,
+            desc: els.desc.value,
+            avatarUrl: currentAvatarUrl
+        };
+
+        // Enable inputs
         inputs.forEach(inp => inp.removeAttribute('readonly'));
         els.name.focus();
+
+        // Switch buttons
         els.btnEditMode.classList.add('hidden');
         els.editActions.classList.remove('hidden');
         els.editActions.classList.add('flex');
+
+        // Enable avatar
         els.avatarContainer.classList.remove('pointer-events-none');
         els.avatarHint.classList.remove('opacity-0');
         els.avatarOverlay.classList.remove('hidden');
     } else {
+        // Disable inputs
         inputs.forEach(inp => inp.setAttribute('readonly', 'true'));
+
+        // Switch buttons
         els.editActions.classList.add('hidden');
         els.editActions.classList.remove('flex');
         els.btnEditMode.classList.remove('hidden');
+
+        // Disable avatar
         els.avatarContainer.classList.add('pointer-events-none');
         els.avatarHint.classList.add('opacity-0');
         els.avatarOverlay.classList.add('hidden');
     }
 }
 
+// Event Listeners for Profile
 if(els.btnEditMode) els.btnEditMode.onclick = () => toggleEditMode(true);
 
 if(els.btnCancel) els.btnCancel.onclick = () => {
@@ -61,6 +86,60 @@ if(els.btnCancel) els.btnCancel.onclick = () => {
     if (originalData.avatarUrl) setAvatar(originalData.avatarUrl);
     toggleEditMode(false);
 };
+
+if(els.btnSave) els.btnSave.onclick = async () => {
+    els.btnSave.disabled = true;
+    const originalText = els.btnSave.innerHTML;
+    els.btnSave.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>';
+    try {
+        await apiFetch('/me/profile', {
+            method: 'PATCH',
+            body: JSON.stringify({
+                salon_name: els.name.value,
+                address: els.address.value,
+                phone: els.phone.value,
+                description: els.desc.value,
+                avatar_url: currentAvatarUrl
+            })
+        });
+        showSuccessToast();
+        toggleEditMode(false);
+    } catch (e) {
+        Telegram.WebApp.showAlert('Ошибка сохранения');
+    } finally {
+        els.btnSave.innerHTML = originalText;
+        els.btnSave.disabled = false;
+    }
+};
+
+if(els.avatarInput) els.avatarInput.onchange = async () => {
+    const file = els.avatarInput.files?.[0];
+    if (!file) return;
+    els.avatarImg.style.opacity = '0.5';
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const response = await fetch(`${BASE_URL}/uploads/avatar`, {
+            method: 'POST',
+            headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData },
+            body: formData
+        });
+        if (!response.ok) throw new Error();
+        const res = await response.json();
+        if (res.avatar_url) setAvatar(res.avatar_url);
+    } catch (e) {
+        Telegram.WebApp.showAlert('Ошибка загрузки фото');
+    } finally {
+        els.avatarImg.style.opacity = '1';
+    }
+};
+
+function setAvatar(url: string) {
+    currentAvatarUrl = url;
+    els.avatarImg.src = url;
+    els.avatarImg.classList.remove('hidden');
+    els.avatarPlaceholder.classList.add('hidden');
+}
 
 function showSuccessToast() {
     if (els.successToast) {
@@ -84,54 +163,11 @@ async function loadProfile() {
     } catch (e) { console.error(e); }
 }
 
-function setAvatar(url: string) {
-    currentAvatarUrl = url;
-    els.avatarImg.src = url;
-    els.avatarImg.classList.remove('hidden');
-    els.avatarPlaceholder.classList.add('hidden');
-}
 
-if(els.avatarInput) els.avatarInput.onchange = async () => {
-    const file = els.avatarInput.files?.[0];
-    if (!file) return;
-    els.avatarImg.style.opacity = '0.5';
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-        const response = await fetch(`${BASE_URL}/uploads/avatar`, {
-            method: 'POST',
-            headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData },
-            body: formData
-        });
-        if (!response.ok) throw new Error();
-        const res = await response.json();
-        if (res.avatar_url) setAvatar(res.avatar_url);
-    } catch (e) { Telegram.WebApp.showAlert('Ошибка загрузки фото'); }
-    finally { els.avatarImg.style.opacity = '1'; }
-};
+// =============================================================================
+// 2. SERVICES LOGIC
+// =============================================================================
 
-if(els.btnSave) els.btnSave.onclick = async () => {
-    els.btnSave.disabled = true;
-    const originalText = els.btnSave.innerHTML;
-    els.btnSave.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>';
-    try {
-        await apiFetch('/me/profile', {
-            method: 'PATCH',
-            body: JSON.stringify({
-                salon_name: els.name.value,
-                address: els.address.value,
-                phone: els.phone.value,
-                description: els.desc.value,
-                avatar_url: currentAvatarUrl
-            })
-        });
-        showSuccessToast();
-        toggleEditMode(false);
-    } catch (e) { Telegram.WebApp.showAlert('Ошибка сохранения'); }
-    finally { els.btnSave.innerHTML = originalText; els.btnSave.disabled = false; }
-};
-
-// --- SERVICES ---
 const srvList = document.getElementById('services-list')!;
 const addServiceForm = document.getElementById('add-service-form') as HTMLElement;
 const btnToggleAdd = document.getElementById('btn-toggle-add-service') as HTMLButtonElement;
@@ -140,6 +176,7 @@ const btnSaveService = document.getElementById('btn-save-service') as HTMLButton
 
 // Inputs
 const inpName = document.getElementById('new-srv-name') as HTMLInputElement;
+const inpDesc = document.getElementById('new-srv-desc') as HTMLTextAreaElement; // <--- Description Input
 const inpPrice = document.getElementById('new-srv-price') as HTMLInputElement;
 const inpDur = document.getElementById('new-srv-dur') as HTMLInputElement;
 
@@ -153,7 +190,11 @@ function toggleServiceForm(show: boolean) {
         addServiceForm.classList.add('hidden');
         addServiceForm.classList.remove('flex');
         btnToggleAdd.classList.remove('hidden');
-        inpName.value = ''; inpPrice.value = ''; inpDur.value = '60';
+        // Clear inputs
+        inpName.value = '';
+        inpDesc.value = ''; // Clear description
+        inpPrice.value = '';
+        inpDur.value = '60';
     }
 }
 if(btnToggleAdd) btnToggleAdd.onclick = () => toggleServiceForm(true);
@@ -163,56 +204,98 @@ async function loadServices() {
     try {
         const services = await apiFetch('/me/services');
         srvList.innerHTML = '';
+
         services.forEach((s: any) => {
             const card = document.createElement('div');
-            card.className = 'bg-surface-dark/40 border border-border-dark/50 p-4 rounded-xl flex justify-between items-center shadow-sm hover:border-border-dark transition-colors';
+            card.className = 'bg-surface-dark/40 border border-border-dark/50 p-4 rounded-xl flex justify-between items-start shadow-sm hover:border-border-dark transition-colors';
+
+            // Left Content
             const infoDiv = document.createElement('div');
-            infoDiv.className = 'flex flex-col gap-1';
+            infoDiv.className = 'flex flex-col gap-1 pr-3 w-full';
+
+            // Title
             const nameSpan = document.createElement('span');
-            nameSpan.className = 'text-white font-bold text-base';
+            nameSpan.className = 'text-white font-bold text-base leading-tight';
             nameSpan.textContent = s.name;
-            const detailsSpan = document.createElement('span');
-            detailsSpan.className = 'text-text-secondary text-sm font-medium';
-            detailsSpan.textContent = `${s.duration_min} мин • ${s.price} ₸`;
             infoDiv.appendChild(nameSpan);
+
+            // Description (New)
+            if (s.description && s.description.trim() !== '') {
+                const descSpan = document.createElement('span');
+                descSpan.className = 'text-text-secondary/70 text-xs leading-snug line-clamp-2 mt-0.5';
+                descSpan.textContent = s.description;
+                infoDiv.appendChild(descSpan);
+            }
+
+            // Price & Duration
+            const detailsSpan = document.createElement('span');
+            detailsSpan.className = 'text-primary text-sm font-bold mt-1';
+            detailsSpan.textContent = `${s.price} ₸ • ${s.duration_min} мин`;
             infoDiv.appendChild(detailsSpan);
+
+            // Delete Button
             const delBtn = document.createElement('button');
-            delBtn.className = 'text-text-secondary/40 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 flex items-center';
+            delBtn.className = 'text-text-secondary/40 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 flex items-center shrink-0 self-center ml-2';
             const delIcon = document.createElement('span');
             delIcon.className = 'material-symbols-outlined';
             delIcon.textContent = 'delete';
             delBtn.appendChild(delIcon);
             delBtn.onclick = () => deleteService(s.id);
+
             card.appendChild(infoDiv);
             card.appendChild(delBtn);
             srvList.appendChild(card);
         });
-    } catch (e) { srvList.innerHTML = '<div class="text-center text-text-secondary p-4">Ошибка</div>'; }
+    } catch (e) {
+        srvList.innerHTML = '<div class="text-center text-text-secondary p-4">Ошибка загрузки услуг</div>';
+    }
 }
 
 if(btnSaveService) btnSaveService.onclick = async () => {
-    if (!inpName.value || !inpPrice.value) return;
+    if (!inpName.value || !inpPrice.value) {
+        Telegram.WebApp.showAlert('Введите название и цену');
+        return;
+    }
+
     btnSaveService.disabled = true;
     const originalText = btnSaveService.textContent;
     btnSaveService.textContent = '...';
+
     try {
         await apiFetch('/me/services', {
             method: 'POST',
-            body: JSON.stringify({ name: inpName.value, price: parseFloat(inpPrice.value), duration_min: parseInt(inpDur.value) || 60 })
+            body: JSON.stringify({
+                name: inpName.value,
+                description: inpDesc.value, // <--- Send Description
+                price: parseFloat(inpPrice.value),
+                duration_min: parseInt(inpDur.value) || 60
+            })
         });
         await loadServices();
         toggleServiceForm(false);
-    } catch(e) { Telegram.WebApp.showAlert('Ошибка'); }
-    finally { btnSaveService.disabled = false; btnSaveService.textContent = originalText; }
+    } catch(e) {
+        Telegram.WebApp.showAlert('Ошибка сохранения');
+    } finally {
+        btnSaveService.disabled = false;
+        btnSaveService.textContent = originalText;
+    }
 };
 
 async function deleteService(id: number) {
-    if(!confirm('Удалить?')) return;
-    await apiFetch(`/me/services/${id}`, { method: 'DELETE' });
-    loadServices();
+    if(!confirm('Удалить эту услугу?')) return;
+    try {
+        await apiFetch(`/me/services/${id}`, { method: 'DELETE' });
+        loadServices();
+    } catch (e) {
+        Telegram.WebApp.showAlert('Ошибка удаления');
+    }
 }
 
-// --- SCHEDULE LOGIC ---
+
+// =============================================================================
+// 3. SCHEDULE LOGIC
+// =============================================================================
+
 const scheduleContainer = document.getElementById('schedule-container')!;
 const btnSaveSchedule = document.getElementById('btn-save-schedule') as HTMLButtonElement;
 const daysMap = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
@@ -233,8 +316,10 @@ function renderScheduleForm(existingData: any[]) {
         const row = document.createElement('div');
         row.className = `group flex items-center gap-3 bg-background-dark px-4 py-4 min-h-[64px] hover:bg-surface-dark transition-colors border-b border-border-dark/30 last:border-0 ${!isActive ? 'opacity-50' : ''}`;
 
+        // Left Checkbox & Label
         const leftSide = document.createElement('div');
         leftSide.className = 'flex items-center gap-3 flex-1 min-w-0';
+
         const checkWrap = document.createElement('div');
         checkWrap.className = 'flex size-6 items-center justify-center shrink-0';
         const checkbox = document.createElement('input');
@@ -243,14 +328,18 @@ function renderScheduleForm(existingData: any[]) {
         checkbox.dataset.day = i.toString();
         checkbox.checked = isActive;
         checkWrap.appendChild(checkbox);
+
         const label = document.createElement('p');
         label.className = `text-white text-base font-medium truncate transition-all ${!isActive ? 'line-through decoration-text-secondary text-text-secondary' : ''}`;
         label.textContent = daysMap[i - 1];
+
         leftSide.appendChild(checkWrap);
         leftSide.appendChild(label);
 
+        // Time Inputs
         const settingsDiv = document.createElement('div');
         settingsDiv.className = `flex items-center gap-2 shrink-0 transition-all ${!isActive ? 'pointer-events-none grayscale opacity-50' : ''}`;
+
         const createTimeInput = (val: string, cls: string) => {
             const inp = document.createElement('input');
             inp.type = 'time';
@@ -263,24 +352,20 @@ function renderScheduleForm(existingData: any[]) {
         sep.className = 'text-text-secondary font-medium';
         sep.textContent = '-';
         const timeEnd = createTimeInput(dayData?.end_time?.slice(0, 5) || '18:00', 'time-end');
+
         settingsDiv.appendChild(timeStart);
         settingsDiv.appendChild(sep);
         settingsDiv.appendChild(timeEnd);
 
         checkbox.onchange = () => {
-            const opacityClass = 'opacity-50';
-            const grayscaleClass = 'grayscale';
-            const pointerEventsClass = 'pointer-events-none';
-            const lineThroughClass = 'line-through';
-
             if (checkbox.checked) {
-                row.classList.remove(opacityClass);
-                settingsDiv.classList.remove(pointerEventsClass, grayscaleClass, opacityClass);
-                label.classList.remove(lineThroughClass, 'decoration-text-secondary', 'text-text-secondary');
+                row.classList.remove('opacity-50');
+                settingsDiv.classList.remove('pointer-events-none', 'grayscale', 'opacity-50');
+                label.classList.remove('line-through', 'decoration-text-secondary', 'text-text-secondary');
             } else {
-                row.classList.add(opacityClass);
-                settingsDiv.classList.add(pointerEventsClass, grayscaleClass, opacityClass);
-                label.classList.add(lineThroughClass, 'decoration-text-secondary', 'text-text-secondary');
+                row.classList.add('opacity-50');
+                settingsDiv.classList.add('pointer-events-none', 'grayscale', 'opacity-50');
+                label.classList.add('line-through', 'decoration-text-secondary', 'text-text-secondary');
             }
         };
         row.appendChild(leftSide);
@@ -329,8 +414,13 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
     }
 };
 
-// --- APPOINTMENTS LOGIC ---
+
+// =============================================================================
+// 4. APPOINTMENTS LOGIC
+// =============================================================================
+
 const appList = document.getElementById('appointments-list')!;
+
 (window as any).loadAppointments = async () => {
     appList.innerHTML = '<div class="text-center text-text-secondary py-4">Загрузка...</div>';
     try {
@@ -343,8 +433,10 @@ const appList = document.getElementById('appointments-list')!;
         apps.forEach((a: any) => {
             const card = document.createElement('div');
             card.className = 'bg-surface-dark/40 p-4 rounded-xl border border-border-dark/50 space-y-3 shadow-sm';
+
             const dateStr = new Date(a.starts_at).toLocaleString('ru-RU', { month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' });
-            // Header
+
+            // Card Header
             const header = document.createElement('div');
             header.className = 'flex justify-between items-start border-b border-border-dark/30 pb-2';
             const dateGroup = document.createElement('div');
@@ -353,21 +445,33 @@ const appList = document.getElementById('appointments-list')!;
             const statusClass = a.status === 'confirmed' ? 'text-green-400 bg-green-400/10' : 'text-orange-400 bg-orange-400/10';
             header.innerHTML += `<div class="${statusClass} px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide">${a.status}</div>`;
             header.prepend(dateGroup);
-            // Grid
+
+            // Card Grid
             const grid = document.createElement('div');
             grid.className = 'grid grid-cols-2 gap-4 text-sm pt-1';
             grid.innerHTML = `
-                <div><div class="text-[11px] text-text-secondary uppercase mb-1">Клиент</div><div class="text-white font-medium">${a.client_phone}</div><div class="text-white font-bold mt-1">${a.pet_name}</div></div>
-                <div class="text-right"><div class="text-[11px] text-text-secondary uppercase mb-1">Услуга</div><div class="text-white font-medium truncate">${a.services?.name || '---'}</div></div>
+                <div>
+                    <div class="text-[11px] text-text-secondary uppercase mb-1">Клиент</div>
+                    <div class="text-white font-medium">${a.client_phone}</div>
+                    <div class="text-white font-bold mt-1">${a.pet_name}</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[11px] text-text-secondary uppercase mb-1">Услуга</div>
+                    <div class="text-white font-medium truncate">${a.services?.name || '---'}</div>
+                </div>
             `;
+
             card.appendChild(header);
             card.appendChild(grid);
+
+            // Confirm Button (if pending)
             if (a.status === 'pending') {
                 const confirmBtn = document.createElement('button');
                 confirmBtn.className = 'w-full mt-2 bg-primary/10 text-primary py-2.5 rounded-lg font-bold text-sm hover:bg-primary/20 transition-all border border-primary/20';
                 confirmBtn.textContent = 'Подтвердить запись';
                 confirmBtn.onclick = async () => {
-                    confirmBtn.textContent = '...'; confirmBtn.disabled = true;
+                    confirmBtn.textContent = '...';
+                    confirmBtn.disabled = true;
                     await apiFetch(`/me/appointments/${a.id}/confirm`, { method: 'POST' });
                     (window as any).loadAppointments();
                 };
@@ -375,10 +479,12 @@ const appList = document.getElementById('appointments-list')!;
             }
             appList.appendChild(card);
         });
-    } catch (e) { appList.innerHTML = 'Ошибка'; }
+    } catch (e) {
+        appList.innerHTML = 'Ошибка загрузки записей';
+    }
 };
 
-// INIT
+// Initial Load
 loadProfile();
 loadServices();
 loadSchedule();

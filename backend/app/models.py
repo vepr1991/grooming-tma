@@ -14,6 +14,7 @@ class ServiceModel(BaseModel):
     name: str
     price: float
     duration_min: int = 60
+    description: Optional[str] = None
     is_active: bool = True
 
 class WorkingHoursModel(BaseModel):
