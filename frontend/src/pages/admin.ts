@@ -1,5 +1,5 @@
-import { apiFetch, BASE_URL } from '../core/api'
-import { initTelegram, Telegram } from '../core/tg'
+import { apiFetch, BASE_URL } from '../core/api';
+import { initTelegram, Telegram } from '../core/tg';
 
 initTelegram();
 
@@ -211,21 +211,20 @@ async function loadServices() {
         }
 
         services.forEach((s: any) => {
-            // Главный контейнер
             const card = document.createElement('div');
-            // w-full важен, чтобы карточка не сжималась
+            // w-full и mb-3
             card.className = 'w-full bg-surface-dark/40 border border-border-dark/50 rounded-xl overflow-hidden transition-all mb-3';
 
-            // --- ВЕРХНЯЯ ЧАСТЬ ---
+            // --- HEADER ---
             const header = document.createElement('div');
             header.className = 'p-4 flex justify-between items-center transition-colors min-h-[72px] relative';
 
-            // Левая часть
+            // Left Side
             const infoDiv = document.createElement('div');
-            infoDiv.className = 'flex flex-col gap-1 pr-10 overflow-hidden'; // pr-10 чтобы текст не наехал на стрелку
+            infoDiv.className = 'flex flex-col gap-1 pr-10 overflow-hidden';
 
             const nameSpan = document.createElement('span');
-            nameSpan.className = 'text-white font-bold text-base leading-tight truncate'; // truncate обрежет слишком длинное название
+            nameSpan.className = 'text-white font-bold text-base leading-tight truncate';
             nameSpan.textContent = s.name;
 
             const detailsSpan = document.createElement('span');
@@ -235,11 +234,10 @@ async function loadServices() {
             infoDiv.appendChild(nameSpan);
             infoDiv.appendChild(detailsSpan);
 
-            // Правая часть (Кнопки)
+            // Right Side (Actions)
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2';
 
-            // Кнопка удаления
             const delBtn = document.createElement('button');
             delBtn.className = 'text-text-secondary/40 hover:text-red-400 p-2 rounded-full hover:bg-white/10 transition-colors z-20';
             delBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
@@ -249,12 +247,11 @@ async function loadServices() {
             };
             actionsDiv.appendChild(delBtn);
 
-            // Стрелочка (если есть описание)
+            // Expand Arrow
             let chevron: HTMLElement | null = null;
             const hasDescription = s.description && s.description.trim() !== '';
 
             if (hasDescription) {
-                // Добавляем иконку стрелки
                 const arrowBtn = document.createElement('div');
                 arrowBtn.className = 'p-1 text-text-secondary/50';
                 chevron = document.createElement('span');
@@ -263,7 +260,6 @@ async function loadServices() {
                 arrowBtn.appendChild(chevron);
                 actionsDiv.appendChild(arrowBtn);
 
-                // Делаем шапку кликабельной
                 header.classList.add('cursor-pointer', 'hover:bg-white/5');
             }
 
@@ -271,26 +267,18 @@ async function loadServices() {
             header.appendChild(actionsDiv);
             card.appendChild(header);
 
-            // --- НИЖНЯЯ ЧАСТЬ (ОПИСАНИЕ) ---
+            // --- BODY (Description) ---
             if (hasDescription) {
                 const body = document.createElement('div');
-                // ВАЖНО: break-words и w-full исправляют вылет за границы
                 body.className = 'hidden px-4 pb-4 pt-3 text-sm text-text-secondary/80 border-t border-border-dark/30 bg-white/5 break-words whitespace-normal w-full leading-relaxed';
                 body.textContent = s.description;
-
                 card.appendChild(body);
 
-                // Логика клика
                 header.onclick = () => {
                     const isHidden = body.classList.contains('hidden');
                     if (isHidden) {
                         body.classList.remove('hidden');
-                        // Небольшая анимация появления
-                        body.animate([
-                            { opacity: 0, transform: 'translateY(-5px)' },
-                            { opacity: 1, transform: 'translateY(0)' }
-                        ], { duration: 200, easing: 'ease-out' });
-
+                        body.animate([{ opacity: 0, transform: 'translateY(-5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 200, easing: 'ease-out' });
                         if (chevron) chevron.style.transform = 'rotate(180deg)';
                     } else {
                         body.classList.add('hidden');
@@ -471,73 +459,294 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
 
 
 // =============================================================================
-// 4. APPOINTMENTS LOGIC
+// 4. APPOINTMENTS LOGIC (UPDATED: Calendar + New Design)
 // =============================================================================
 
 const appList = document.getElementById('appointments-list')!;
+const calendarContainer = document.getElementById('calendar-container')!;
+
+// STATE
+let selectedDate = new Date(); // Selected date
+let viewDate = new Date();     // Currently viewed month
+let busyDates: string[] = [];  // Dates with appointments (YYYY-MM-DD)
+
+// CONSTANTS
+const MONTH_NAMES = [
+    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
+const WEEK_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+// --- CALENDAR RENDERER ---
+function renderCalendar() {
+    if (!calendarContainer) return;
+
+    // 1. Calculations
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+
+    // Days in month
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    // First day of week (0=Mon, 6=Sun)
+    let firstDay = new Date(year, month, 1).getDay() - 1;
+    if (firstDay === -1) firstDay = 6;
+
+    const todayStr = new Date().toDateString();
+    const selectedStr = selectedDate.toDateString();
+
+    // 2. HTML Generation
+    let html = `
+        <div class="px-4 pt-4 pb-2">
+            <div class="flex justify-between items-center mb-3 px-2">
+                <h2 class="text-lg font-bold text-white capitalize">
+                    ${MONTH_NAMES[month]} ${year}
+                </h2>
+                <div class="flex gap-1">
+                    <button id="cal-prev" class="p-1.5 hover:bg-gray-800 rounded-lg text-gray-400 active:bg-gray-700 transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+                    </button>
+                    <button id="cal-next" class="p-1.5 hover:bg-gray-800 rounded-lg text-gray-400 active:bg-gray-700 transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-7 gap-1 text-center mb-2">
+                ${WEEK_DAYS.map(d => `<span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">${d}</span>`).join('')}
+            </div>
+
+            <div class="grid grid-cols-7 gap-1">
+    `;
+
+    // Empty slots
+    for (let i = 0; i < firstDay; i++) {
+        html += `<div class="h-9"></div>`;
+    }
+
+    // Days
+    for (let i = 1; i <= daysInMonth; i++) {
+        const currentDate = new Date(year, month, i);
+        const currentStr = currentDate.toDateString();
+
+        // YYYY-MM-DD for checking busyDates
+        const y = currentDate.getFullYear();
+        const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const d = String(currentDate.getDate()).padStart(2, '0');
+        const isoDate = `${y}-${m}-${d}`;
+
+        const isSelected = currentStr === selectedStr;
+        const isToday = currentStr === todayStr;
+        const hasRecords = busyDates.includes(isoDate);
+
+        let classes = "h-9 flex flex-col items-center justify-center rounded-lg text-sm font-medium transition-all relative ";
+
+        if (isSelected) {
+            classes += "bg-primary text-white shadow-md shadow-primary/20 scale-105";
+        } else if (isToday) {
+            classes += "text-primary border border-primary/30";
+        } else {
+            classes += "text-gray-400 hover:bg-gray-800";
+        }
+
+        const dotColor = isSelected ? 'bg-white' : 'bg-primary';
+        const dot = hasRecords ? `<span class="w-1 h-1 rounded-full absolute bottom-1.5 ${dotColor}"></span>` : '';
+
+        html += `
+            <button class="day-btn ${classes}" data-day="${i}">
+                <span>${i}</span>
+                ${dot}
+            </button>
+        `;
+    }
+
+    html += `</div></div>`;
+    calendarContainer.innerHTML = html;
+
+    // 3. Event Listeners
+    const btnPrev = document.getElementById('cal-prev');
+    const btnNext = document.getElementById('cal-next');
+    if (btnPrev) btnPrev.onclick = () => changeMonth(-1);
+    if (btnNext) btnNext.onclick = () => changeMonth(1);
+
+    document.querySelectorAll('.day-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const day = parseInt((e.currentTarget as HTMLElement).dataset.day!);
+            selectedDate = new Date(year, month, day);
+            renderCalendar();
+            renderAppointmentsList((window as any).cachedAppointments || []);
+        });
+    });
+}
+
+function changeMonth(offset: number) {
+    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1);
+    renderCalendar();
+}
+
+// --- APPOINTMENTS LOADING & RENDERING ---
+
+// Cache appointments to filter on client side
+(window as any).cachedAppointments = [];
 
 (window as any).loadAppointments = async () => {
-    appList.innerHTML = '<div class="text-center text-text-secondary py-4">Загрузка...</div>';
+    if (!appList) return;
+    appList.innerHTML = '<div class="text-center text-gray-500 py-8">Загрузка...</div>';
+
     try {
         const apps = await apiFetch('/me/appointments');
-        appList.innerHTML = '';
-        if (apps.length === 0) {
-            appList.innerHTML = '<div class="text-center text-text-secondary py-8 bg-surface-dark/40 rounded-xl border border-border-dark/50">Записей пока нет</div>';
-            return;
-        }
+        (window as any).cachedAppointments = apps;
+
+        // Update busyDates for calendar
+        const datesSet = new Set<string>();
         apps.forEach((a: any) => {
-            const card = document.createElement('div');
-            card.className = 'bg-surface-dark/40 p-4 rounded-xl border border-border-dark/50 space-y-3 shadow-sm';
-
-            const dateStr = new Date(a.starts_at).toLocaleString('ru-RU', { month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' });
-
-            // Card Header
-            const header = document.createElement('div');
-            header.className = 'flex justify-between items-start border-b border-border-dark/30 pb-2';
-            const dateGroup = document.createElement('div');
-            dateGroup.className = 'flex items-center gap-2';
-            dateGroup.innerHTML = `<span class="material-symbols-outlined text-primary">calendar_month</span><div class="font-bold text-white capitalize">${dateStr}</div>`;
-            const statusClass = a.status === 'confirmed' ? 'text-green-400 bg-green-400/10' : 'text-orange-400 bg-orange-400/10';
-            header.innerHTML += `<div class="${statusClass} px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide">${a.status}</div>`;
-            header.prepend(dateGroup);
-
-            // Card Grid
-            const grid = document.createElement('div');
-            grid.className = 'grid grid-cols-2 gap-4 text-sm pt-1';
-            grid.innerHTML = `
-                <div>
-                    <div class="text-[11px] text-text-secondary uppercase mb-1">Клиент</div>
-                    <div class="text-white font-medium">${a.client_phone}</div>
-                    <div class="text-white font-bold mt-1">${a.pet_name}</div>
-                </div>
-                <div class="text-right">
-                    <div class="text-[11px] text-text-secondary uppercase mb-1">Услуга</div>
-                    <div class="text-white font-medium truncate">${a.services?.name || '---'}</div>
-                </div>
-            `;
-
-            card.appendChild(header);
-            card.appendChild(grid);
-
-            // Confirm Button (if pending)
-            if (a.status === 'pending') {
-                const confirmBtn = document.createElement('button');
-                confirmBtn.className = 'w-full mt-2 bg-primary/10 text-primary py-2.5 rounded-lg font-bold text-sm hover:bg-primary/20 transition-all border border-primary/20';
-                confirmBtn.textContent = 'Подтвердить запись';
-                confirmBtn.onclick = async () => {
-                    confirmBtn.textContent = '...';
-                    confirmBtn.disabled = true;
-                    await apiFetch(`/me/appointments/${a.id}/confirm`, { method: 'POST' });
-                    (window as any).loadAppointments();
-                };
-                card.appendChild(confirmBtn);
-            }
-            appList.appendChild(card);
+             const d = new Date(a.starts_at);
+             const y = d.getFullYear();
+             const m = String(d.getMonth() + 1).padStart(2, '0');
+             const day = String(d.getDate()).padStart(2, '0');
+             datesSet.add(`${y}-${m}-${day}`);
         });
+        busyDates = Array.from(datesSet);
+
+        renderCalendar();
+        renderAppointmentsList(apps);
+
     } catch (e) {
-        appList.innerHTML = 'Ошибка загрузки записей';
+        appList.innerHTML = '<div class="text-center text-red-400">Ошибка сети</div>';
     }
 };
+
+function renderAppointmentsList(apps: any[]) {
+    if (!appList) return;
+    appList.innerHTML = '';
+
+    // Filter by selectedDate
+    const filtered = apps.filter((a: any) => {
+        const d = new Date(a.starts_at);
+        return d.toDateString() === selectedDate.toDateString();
+    });
+
+    if (filtered.length === 0) {
+        appList.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-12 opacity-50">
+                <span class="material-symbols-outlined text-5xl text-gray-600 mb-2">event_note</span>
+                <p class="text-gray-400 text-sm">Нет записей на этот день</p>
+            </div>`;
+        return;
+    }
+
+    filtered.forEach((a: any) => {
+        const cardHTML = createRecordCardHTML(a);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = cardHTML;
+        const cardEl = tempDiv.firstElementChild as HTMLElement;
+
+        // Handlers
+        const btnMsg = cardEl.querySelector('.btn-msg') as HTMLElement;
+        if(btnMsg) btnMsg.onclick = () => {
+            const phone = a.client_phone.replace(/\D/g, '');
+            window.open(`https://wa.me/${phone}`, '_blank');
+        };
+
+        const btnConfirm = cardEl.querySelector('.btn-confirm') as HTMLButtonElement;
+        if(btnConfirm && !btnConfirm.disabled) {
+            btnConfirm.onclick = async () => {
+                btnConfirm.innerHTML = '<span class="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>';
+                btnConfirm.disabled = true;
+                try {
+                    await apiFetch(`/me/appointments/${a.id}/confirm`, { method: 'POST' });
+                    (window as any).loadAppointments();
+                } catch (e) {
+                    Telegram.WebApp.showAlert('Ошибка');
+                    btnConfirm.textContent = 'Ошибка';
+                }
+            };
+        }
+
+        const btnCancel = cardEl.querySelector('.btn-cancel') as HTMLButtonElement;
+        if(btnCancel) {
+            btnCancel.onclick = async () => {
+               if(confirm('Отменить запись?')) {
+                   Telegram.WebApp.showAlert('Запрос на отмену отправлен');
+               }
+            };
+        }
+
+        appList.appendChild(cardEl);
+    });
+}
+
+function createRecordCardHTML(record: any) {
+    const isPending = record.status === 'pending';
+    const dateObj = new Date(record.starts_at);
+    const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+    // Design Logic
+    const borderClass = isPending ? 'border-l-orange-500 shadow-orange-500/5' : 'border-l-green-500 shadow-green-500/5';
+    const dotClass = isPending ? 'bg-orange-500 animate-pulse' : 'bg-green-500';
+    const statusBg = isPending ? 'bg-orange-500 text-orange-500' : 'bg-green-500 text-green-500';
+    const statusText = isPending ? 'ОЖИДАЕТ' : 'ГОТОВО';
+
+    const confirmBtnStyle = isPending
+        ? 'bg-primary text-white hover:bg-primary/90 shadow-primary/20 shadow-lg'
+        : 'bg-green-600/20 text-green-400 border border-green-600/30 cursor-default shadow-none';
+
+    const confirmBtnText = isPending ? 'Подтвердить' : 'Подтверждено';
+    const confirmBtnDisabled = isPending ? '' : 'disabled';
+
+    const avatarHTML = `
+        <div class="w-16 h-16 rounded-2xl overflow-hidden bg-gray-800 flex-shrink-0 border border-gray-700 shadow-inner flex items-center justify-center text-3xl">
+           🐶
+        </div>
+    `;
+
+    return `
+    <div class="relative bg-[#1a2632] rounded-2xl p-4 mb-3 border border-gray-800 flex flex-col gap-4 transition-all duration-300 border-l-4 shadow-lg ${borderClass}">
+
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span>
+          <span class="text-gray-200 font-bold text-xs">${timeStr}</span>
+        </div>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-opacity-10 ${statusBg}">
+          ${statusText}
+        </span>
+      </div>
+
+      <div class="flex gap-4 items-center">
+        ${avatarHTML}
+        <div class="flex-grow min-w-0">
+          <h3 class="text-lg font-bold truncate text-white leading-tight">${record.pet_name}</h3>
+          <p class="text-gray-400 text-xs truncate mb-1.5">
+            ${record.services?.name || 'Услуга'} • ${record.pet_breed || 'Порода'}
+          </p>
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] text-gray-500 truncate font-medium">Клиент</span>
+            <a href="tel:${record.client_phone}" class="text-primary text-[11px] font-bold hover:text-blue-300 flex items-center gap-1 transition-colors hover:underline">
+              <span class="material-symbols-outlined text-[12px]">call</span>
+              ${record.client_phone}
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <div class="flex gap-2">
+          <button class="btn-cancel flex-1 py-2.5 rounded-xl bg-gray-800/50 text-gray-400 font-bold text-xs hover:bg-red-900/20 hover:text-red-400 border border-gray-700 active:scale-[0.98] transition-all">
+            Отменить
+          </button>
+          <button ${confirmBtnDisabled} class="btn-confirm flex-[2] py-2.5 rounded-xl font-bold text-xs active:scale-[0.98] transition-all ${confirmBtnStyle}">
+            ${confirmBtnText}
+          </button>
+        </div>
+        <button class="btn-msg w-full py-2.5 rounded-xl bg-gray-800/30 text-gray-300 font-bold text-xs border border-gray-700 flex items-center justify-center gap-2 hover:bg-gray-700 hover:text-white transition-all active:scale-[0.98]">
+          <span class="material-symbols-outlined text-[14px] text-primary">chat</span>
+          Написать
+        </button>
+      </div>
+    </div>
+    `;
+}
 
 // Initial Load
 loadProfile();
