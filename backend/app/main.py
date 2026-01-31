@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles  # <--- Не забудьте этот импорт
 from pydantic import BaseModel
 from typing import List, Optional
 import json
@@ -28,24 +29,36 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # --- UTILS ---
 def send_telegram_message(chat_id: int, text: str):
-    """Отправляет сообщение в Telegram через Bot API"""
     if not BOT_TOKEN:
         print("WARNING: BOT_TOKEN not set, notification skipped")
         return
-
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML"
-    }
-
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     try:
-        response = requests.post(url, json=payload, timeout=5)
-        if response.status_code != 200:
-            print(f"Telegram API Error: {response.text}")
+        requests.post(url, json=payload, timeout=5)
     except Exception as e:
         print(f"Failed to send notification: {e}")
+
+
+# --- HELPER: ГАРАНТИЯ СУЩЕСТВОВАНИЯ МАСТЕРА ---
+def ensure_master_exists(user_data: dict):
+    """
+    Проверяет, есть ли мастер в базе. Если нет — создает.
+    Предотвращает ошибки Foreign Key при создании услуг/графика.
+    """
+    tg_id = user_data['id']
+    # Проверяем существование (легкий запрос)
+    res = supabase.table("masters").select("telegram_id").eq("telegram_id", tg_id).execute()
+
+    if not res.data:
+        # Если нет — создаем
+        print(f"Master {tg_id} not found. Creating new record...")
+        new_user = {
+            "telegram_id": tg_id,
+            "username": user_data.get("username"),
+            "full_name": f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip()
+        }
+        supabase.table("masters").insert(new_user).execute()
 
 
 # --- PYDANTIC MODELS ---
@@ -94,21 +107,18 @@ async def health_check():
 # 1. АДМИНСКАЯ ЧАСТЬ
 @app.get("/me")
 async def get_my_profile(user=Depends(validate_telegram_data)):
-    tg_id = user['id']
-    res = supabase.table("masters").select("*").eq("telegram_id", tg_id).execute()
-    if not res.data:
-        new_user = {
-            "telegram_id": tg_id,
-            "username": user.get("username"),
-            "full_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
-        }
-        res = supabase.table("masters").insert(new_user).execute()
-        return {"user": user, "profile": res.data[0]}
+    # Используем нашу новую функцию
+    ensure_master_exists(user)
+
+    # Теперь безопасно получаем профиль
+    res = supabase.table("masters").select("*").eq("telegram_id", user['id']).execute()
     return {"user": user, "profile": res.data[0]}
 
 
 @app.patch("/me/profile")
 async def update_profile(data: UserProfileUpdate, user=Depends(validate_telegram_data)):
+    ensure_master_exists(user)  # Гарантируем, что есть что обновлять
+
     tg_id = user['id']
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     res = supabase.table("masters").update(update_data).eq("telegram_id", tg_id).execute()
@@ -117,6 +127,7 @@ async def update_profile(data: UserProfileUpdate, user=Depends(validate_telegram
 
 @app.post("/uploads/avatar")
 async def upload_avatar(file: UploadFile = File(...), user=Depends(validate_telegram_data)):
+    ensure_master_exists(user)
     file_content = await file.read()
     file_path = f"{user['id']}/avatar.png"
     try:
@@ -131,12 +142,17 @@ async def upload_avatar(file: UploadFile = File(...), user=Depends(validate_tele
 
 @app.get("/me/services")
 async def get_services(user=Depends(validate_telegram_data)):
+    # Здесь проверка не обязательна (вернется пустой список), но для порядка можно
     res = supabase.table("services").select("*").eq("master_telegram_id", user['id']).execute()
     return res.data
 
 
 @app.post("/me/services")
 async def create_service(srv: ServiceCreate, user=Depends(validate_telegram_data)):
+    # !!! ВОТ ЗДЕСЬ БЫЛА ОШИБКА !!!
+    # Мы пытались добавить услугу к несуществующему мастеру.
+    ensure_master_exists(user)
+
     data = srv.model_dump()
     data['master_telegram_id'] = user['id']
     res = supabase.table("services").insert(data).execute()
@@ -157,6 +173,8 @@ async def get_hours(user=Depends(validate_telegram_data)):
 
 @app.post("/me/working-hours")
 async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram_data)):
+    ensure_master_exists(user)  # Гарантируем существование перед настройкой графика
+
     supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
     data_list = []
     for h in hours:
@@ -215,30 +233,23 @@ async def get_master_services(master_id: int):
 async def get_master_availability(master_id: int, date: str):
     date_obj = datetime.strptime(date, "%Y-%m-%d")
     weekday_iso = date_obj.isoweekday()
-
-    wh_res = supabase.table("working_hours") \
-        .select("*") \
-        .eq("master_telegram_id", master_id) \
-        .eq("day_of_week", weekday_iso) \
-        .execute()
-
-    if not wh_res.data:
-        return []
+    wh_res = supabase.table("working_hours").select("*").eq("master_telegram_id", master_id).eq("day_of_week",
+                                                                                                weekday_iso).execute()
+    if not wh_res.data: return []
 
     schedule = wh_res.data[0]
-    start_str = schedule['start_time']
-    end_str = schedule['end_time']
     slot_min = schedule.get('slot_minutes', 30)
-
     slots = []
-    work_start = datetime.strptime(f"{date} {start_str}", "%Y-%m-%d %H:%M:%S")
-    work_end = datetime.strptime(f"{date} {end_str}", "%Y-%m-%d %H:%M:%S")
 
+    # Генерация слотов
+    work_start = datetime.strptime(f"{date} {schedule['start_time']}", "%Y-%m-%d %H:%M:%S")
+    work_end = datetime.strptime(f"{date} {schedule['end_time']}", "%Y-%m-%d %H:%M:%S")
     current_slot = work_start
     while current_slot < work_end:
         slots.append(current_slot)
         current_slot += timedelta(minutes=slot_min)
 
+    # Занятое время
     busy_res = supabase.table("appointments") \
         .select("starts_at") \
         .eq("master_telegram_id", master_id) \
@@ -256,12 +267,7 @@ async def get_master_availability(master_id: int, date: str):
             t_dt = datetime.strptime(t_str, "%Y-%m-%d %H:%M:%S")
         busy_times.add(t_dt)
 
-    free_slots = []
-    for s in slots:
-        if s not in busy_times:
-            free_slots.append(s.isoformat())
-
-    return free_slots
+    return [s.isoformat() for s in slots if s not in busy_times]
 
 
 @app.get("/masters/{master_id}/schedule")
@@ -282,29 +288,19 @@ async def create_appointment_public(app_data: AppointmentCreate, user=Depends(va
     if not data.get('idempotency_key'):
         data['idempotency_key'] = str(uuid.uuid4())
 
-    # 1. Проверка на занятость
-    exist = supabase.table("appointments") \
-        .select("id") \
-        .eq("master_telegram_id", data['master_telegram_id']) \
-        .eq("starts_at", data['starts_at']) \
-        .neq("status", "cancelled") \
-        .execute()
-
+    exist = supabase.table("appointments").select("id").eq("master_telegram_id", data['master_telegram_id']).eq(
+        "starts_at", data['starts_at']).neq("status", "cancelled").execute()
     if exist.data:
         raise HTTPException(status_code=409, detail="Slot already booked")
 
-    # 2. Сохранение
     res = supabase.table("appointments").insert(data).execute()
 
-    # 3. УВЕДОМЛЕНИЕ
+    # УВЕДОМЛЕНИЕ
     try:
         dt = datetime.fromisoformat(data['starts_at'].replace('Z', '+00:00'))
         date_str = dt.strftime("%d.%m.%Y в %H:%M")
-
-        # --- ИСПРАВЛЕННАЯ ЛОГИКА ОТОБРАЖЕНИЯ ЮЗЕРНЕЙМА ---
         username_val = data.get('client_username')
         username_str = f" (@{username_val})" if username_val else ""
-        # -------------------------------------------------
 
         msg = (
             f"🆕 <b>Новая запись!</b>\n\n"
@@ -314,12 +310,17 @@ async def create_appointment_public(app_data: AppointmentCreate, user=Depends(va
             f"{f'({data.get('pet_breed')})' if data.get('pet_breed') else ''}\n"
             f"🗓 <b>Время:</b> {date_str}\n"
         )
-        if data.get('comment'):
-            msg += f"💬 <b>Комментарий:</b> {data.get('comment')}"
-
+        if data.get('comment'): msg += f"💬 <b>Комментарий:</b> {data.get('comment')}"
         send_telegram_message(data['master_telegram_id'], msg)
-
     except Exception as e:
         print(f"Notification Error: {e}")
 
     return res.data
+
+
+# --- МОНТИРОВАНИЕ СТАТИКИ (ОБЯЗАТЕЛЬНО В КОНЦЕ) ---
+frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist")
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="static")
+else:
+    print(f"WARNING: Frontend build not found at {frontend_path}")
