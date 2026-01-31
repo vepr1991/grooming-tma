@@ -1,55 +1,175 @@
 <!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Запись на груминг</title>
+<html class="dark" lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+    <title>Запись к мастеру</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="./src/style.css">
-</head>
-<body>
-    <div id="view-profile">
-        <div class="header">
-            <img id="m-img" src="" alt="" style="width: 100%; height: 200px; object-fit: cover; background: #eee;">
-            <h1 id="m-name">Загрузка...</h1>
-            <p id="m-desc"></p>
-        </div>
-        <div id="services-list" class="list"></div>
-    </div>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              bg: "#0f1923",       // Основной фон
+              surface: "#182430",  // Карточки
+              primary: "#3899fa",  // Акцент (синий)
+              secondary: "#8eadcc",// Вторичный текст
+              border: "#2f4d6a",   // Границы
+              success: "#31b545"   // Зеленый статус
+            },
+            fontFamily: {
+              sans: ["Plus Jakarta Sans", "sans-serif"]
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body { background-color: #0f1923; color: white; -webkit-tap-highlight-color: transparent; }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-<div id="view-booking" style="display: none;">
-        <div class="calendar-container">
-            <div class="calendar-header">
-                <button id="btn-prev-month" class="nav-btn">‹</button>
-                <span id="calendar-month-label">Январь 2026</span>
-                <button id="btn-next-month" class="nav-btn">›</button>
+      /* Анимации */
+      .fade-in { animation: fadeIn 0.3s ease-in-out; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+      /* Календарь */
+      .day-cell {
+        height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        border-radius: 10px; font-weight: 600; font-size: 14px; color: #8eadcc; transition: all 0.2s; cursor: pointer; border: 1px solid transparent;
+      }
+      .day-cell.selected { background-color: #3899fa; color: white; box-shadow: 0 4px 12px rgba(56, 153, 250, 0.3); transform: scale(1.05); }
+      .day-cell.today { border-color: rgba(56, 153, 250, 0.5); color: #3899fa; }
+      .day-cell.disabled { opacity: 0.3; pointer-events: none; }
+
+      /* Слоты */
+      .slot-btn {
+        padding: 10px; border-radius: 12px; background: #182430; border: 1px solid #2f4d6a;
+        color: white; font-weight: 600; font-size: 14px; transition: all 0.2s;
+      }
+      .slot-btn.active { background: #3899fa; border-color: #3899fa; box-shadow: 0 4px 12px rgba(56, 153, 250, 0.3); }
+    </style>
+  </head>
+  <body class="min-h-screen pb-6">
+
+    <div id="view-home" class="flex flex-col relative fade-in">
+
+        <header class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-[#0f1923]/80 backdrop-blur-md border-b border-white/5">
+            <button onclick="Telegram.WebApp.close()" class="p-2 -ml-2 text-secondary hover:text-white transition-colors">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+            <h1 class="text-lg font-bold text-white tracking-wide">Запись онлайн</h1>
+            <div class="w-8"></div> </header>
+
+        <div class="flex flex-col items-center pt-24 pb-6 px-6 text-center">
+            <div class="relative mb-4 group">
+                <div class="w-24 h-24 rounded-full border-4 border-surface overflow-hidden shadow-2xl relative z-10 bg-surface">
+                    <img id="hero-avatar" src="" class="w-full h-full object-cover hidden">
+                    <span id="hero-avatar-placeholder" class="material-symbols-rounded text-5xl text-secondary/30 w-full h-full flex items-center justify-center">storefront</span>
+                </div>
+                <div class="absolute bottom-1 right-1 w-5 h-5 bg-success border-4 border-bg rounded-full z-20"></div>
+                <div class="absolute inset-0 bg-primary/20 blur-2xl rounded-full -z-0 transform scale-150 opacity-50"></div>
             </div>
 
-            <div class="weekdays-row">
-                <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+            <h2 id="hero-title" class="text-2xl font-extrabold text-white mb-1 leading-tight tracking-tight">Загрузка...</h2>
+
+            <div class="flex items-center gap-2 mb-4 bg-surface/50 px-3 py-1 rounded-full border border-white/5">
+                <span class="text-success text-[10px] animate-pulse">●</span>
+                <span id="hero-status" class="text-secondary text-xs font-bold uppercase tracking-wider">Открыто</span>
             </div>
 
-            <div id="calendar-grid" class="days-grid"></div>
+            <p id="hero-desc" class="text-secondary text-sm leading-relaxed max-w-[280px] line-clamp-3"></p>
         </div>
 
-        <h3 id="slots-title" style="margin-top: 20px; display:none;">Доступное время</h3>
-        <div id="slots-grid" class="slots-grid"></div>
-
-        <h3 id="form-title" style="display:none;">Ваши данные</h3>
-        <div id="form-block" style="display:none;">
-            <input type="text" id="pet-name" placeholder="Кличка питомца" class="input-full">
-            <input type="tel" id="phone" placeholder="Ваш телефон" class="input-full">
+        <div class="px-4 pb-24 space-y-3" id="services-list">
+            <div class="text-center text-secondary py-10">Загрузка услуг...</div>
         </div>
     </div>
 
-    <div id="toast" class="toast hidden">Сообщение</div>
+    <div id="view-booking" class="hidden min-h-screen bg-bg flex-col pt-4 fade-in">
+        <header class="px-4 mb-4">
+            <button onclick="goBack()" class="flex items-center gap-1 text-secondary hover:text-white transition-colors mb-2">
+                <span class="material-symbols-rounded text-xl">arrow_back</span>
+                <span class="text-sm font-bold">Назад к услугам</span>
+            </button>
+            <h2 class="text-2xl font-bold text-white">Выберите время</h2>
+            <p id="selected-service-name" class="text-primary text-sm font-medium">Услуга</p>
+        </header>
 
-    <div id="view-success" style="display: none; text-align: center; padding: 50px 20px;">
-        <h1>✅ Вы записаны!</h1>
-        <p>Мастер скоро подтвердит запись.</p>
-        <button onclick="Telegram.WebApp.close()">Закрыть</button>
+        <div class="bg-surface mx-4 rounded-2xl p-4 border border-border/50 shadow-lg mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="cal-month" class="text-lg font-bold text-white capitalize">Сентябрь</h3>
+                <div class="flex gap-1">
+                    <button id="btn-prev-month" class="p-1 hover:bg-white/5 rounded-lg text-secondary"><span class="material-symbols-rounded">chevron_left</span></button>
+                    <button id="btn-next-month" class="p-1 hover:bg-white/5 rounded-lg text-secondary"><span class="material-symbols-rounded">chevron_right</span></button>
+                </div>
+            </div>
+            <div class="grid grid-cols-7 gap-1 mb-2 text-center">
+                <span class="text-[10px] font-bold text-secondary uppercase">Пн</span>
+                <span class="text-[10px] font-bold text-secondary uppercase">Вт</span>
+                <span class="text-[10px] font-bold text-secondary uppercase">Ср</span>
+                <span class="text-[10px] font-bold text-secondary uppercase">Чт</span>
+                <span class="text-[10px] font-bold text-secondary uppercase">Пт</span>
+                <span class="text-[10px] font-bold text-secondary uppercase">Сб</span>
+                <span class="text-[10px] font-bold text-secondary uppercase">Вс</span>
+            </div>
+            <div id="cal-grid" class="grid grid-cols-7 gap-1"></div>
+        </div>
+
+        <div id="slots-container" class="px-4 mb-8 hidden">
+            <h3 class="text-sm font-bold text-secondary uppercase tracking-wider mb-3">Доступные слоты</h3>
+            <div id="slots-grid" class="grid grid-cols-4 gap-2"></div>
+        </div>
+
+        <div id="booking-form" class="px-4 space-y-4 pb-24 hidden fade-in">
+            <h3 class="text-sm font-bold text-secondary uppercase tracking-wider">Детали записи</h3>
+
+            <div class="space-y-4">
+                <div class="group">
+                    <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">ВАШ ТЕЛЕФОН</label>
+                    <input type="tel" id="inp-phone" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="+7 (999) 000-00-00">
+                </div>
+
+                <div class="group">
+                    <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">КЛИЧКА ПИТОМЦА</label>
+                    <input type="text" id="inp-pet-name" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="Например: Бобик">
+                </div>
+
+                <div class="group">
+                    <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">ПОРОДА (Опционально)</label>
+                    <input type="text" id="inp-pet-breed" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="Например: Корги">
+                </div>
+
+                <div class="group">
+                    <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">КОММЕНТАРИЙ</label>
+                    <textarea id="inp-comment" rows="2" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10 resize-none" placeholder="Особенности, пожелания..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-success" class="hidden min-h-screen flex flex-col items-center justify-center p-6 text-center fade-in bg-bg">
+        <div class="w-24 h-24 bg-success/20 rounded-full flex items-center justify-center mb-6 ring-4 ring-success/10">
+            <span class="material-symbols-rounded text-6xl text-success">check</span>
+        </div>
+        <h2 class="text-3xl font-extrabold text-white mb-2">Вы записаны!</h2>
+        <p class="text-secondary mb-8 max-w-xs">Мастер получил вашу заявку. Мы отправим уведомление, когда запись будет подтверждена.</p>
+        <button onclick="Telegram.WebApp.close()" class="w-full max-w-sm bg-surface border border-border text-white font-bold py-4 rounded-xl active:scale-95 transition-all">
+            Закрыть
+        </button>
+    </div>
+
+    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-surface border border-primary text-white px-6 py-3 rounded-full shadow-2xl z-[100] hidden transition-all flex items-center gap-2">
+        <span class="material-symbols-rounded text-primary">info</span>
+        <span id="toast-msg" class="font-bold text-sm"></span>
     </div>
 
     <script type="module" src="./src/pages/client.ts"></script>
-</body>
+  </body>
 </html>
