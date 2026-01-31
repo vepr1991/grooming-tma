@@ -302,11 +302,17 @@ function renderCalendar() {
     }
 }
 
+// --- ИСПРАВЛЕНИЕ НАВИГАЦИИ ---
 document.getElementById('btn-prev-month')!.onclick = () => {
+    // Сбрасываем число на 1-е, чтобы избежать бага с 31 января -> 3 марта
+    calDate.setDate(1);
     calDate.setMonth(calDate.getMonth() - 1);
     renderCalendar();
 };
+
 document.getElementById('btn-next-month')!.onclick = () => {
+    // Сбрасываем число на 1-е
+    calDate.setDate(1);
     calDate.setMonth(calDate.getMonth() + 1);
     renderCalendar();
 };

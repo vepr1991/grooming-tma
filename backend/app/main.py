@@ -5,7 +5,7 @@ from typing import List, Optional
 import json
 import uuid
 import os
-import requests  # <--- Нужно для отправки сообщений
+import requests
 from datetime import datetime, timedelta
 
 # Импортируем наши модули
@@ -23,7 +23,7 @@ app.add_middleware(
 )
 
 # --- CONFIG ---
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Токен должен быть в переменных окружения
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 
 # --- UTILS ---
@@ -41,7 +41,6 @@ def send_telegram_message(chat_id: int, text: str):
     }
 
     try:
-        # Используем requests для синхронной отправки (быстро и надежно для MVP)
         response = requests.post(url, json=payload, timeout=5)
         if response.status_code != 200:
             print(f"Telegram API Error: {response.text}")
@@ -183,9 +182,6 @@ async def get_my_appointments(user=Depends(validate_telegram_data)):
 async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
     res = supabase.table("appointments").update({"status": "confirmed"}) \
         .eq("id", aid).eq("master_telegram_id", user['id']).execute()
-
-    # Можно добавить уведомление клиенту здесь (если нужно)
-
     return res.data
 
 
@@ -297,19 +293,22 @@ async def create_appointment_public(app_data: AppointmentCreate, user=Depends(va
     if exist.data:
         raise HTTPException(status_code=409, detail="Slot already booked")
 
-    # 2. Сохранение в БД
+    # 2. Сохранение
     res = supabase.table("appointments").insert(data).execute()
 
-    # 3. ОТПРАВКА УВЕДОМЛЕНИЯ МАСТЕРУ В TELEGRAM
+    # 3. УВЕДОМЛЕНИЕ
     try:
-        # Форматируем дату красиво
         dt = datetime.fromisoformat(data['starts_at'].replace('Z', '+00:00'))
         date_str = dt.strftime("%d.%m.%Y в %H:%M")
 
+        # --- ИСПРАВЛЕННАЯ ЛОГИКА ОТОБРАЖЕНИЯ ЮЗЕРНЕЙМА ---
+        username_val = data.get('client_username')
+        username_str = f" (@{username_val})" if username_val else ""
+        # -------------------------------------------------
+
         msg = (
             f"🆕 <b>Новая запись!</b>\n\n"
-            f"👤 <b>Клиент:</b> {data.get('client_name', 'Без имени')} "
-            f"(@{data.get('client_username', '-')})\n"
+            f"👤 <b>Клиент:</b> {data.get('client_name', 'Без имени')}{username_str}\n"
             f"📞 <b>Телефон:</b> <code>{data.get('client_phone')}</code>\n"
             f"🐶 <b>Питомец:</b> {data.get('pet_name')} "
             f"{f'({data.get('pet_breed')})' if data.get('pet_breed') else ''}\n"
