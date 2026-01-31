@@ -5,6 +5,7 @@
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
     <title>Запись к мастеру</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/imask"></script>
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -16,16 +17,14 @@
         theme: {
           extend: {
             colors: {
-              bg: "#0f1923",       // Основной фон
-              surface: "#182430",  // Карточки
-              primary: "#3899fa",  // Акцент (синий)
-              secondary: "#8eadcc",// Вторичный текст
-              border: "#2f4d6a",   // Границы
-              success: "#31b545"   // Зеленый статус
+              bg: "#0f1923",
+              surface: "#182430",
+              primary: "#3899fa",
+              secondary: "#8eadcc",
+              border: "#2f4d6a",
+              success: "#31b545"
             },
-            fontFamily: {
-              sans: ["Plus Jakarta Sans", "sans-serif"]
-            }
+            fontFamily: { sans: ["Plus Jakarta Sans", "sans-serif"] }
           }
         }
       }
@@ -33,39 +32,39 @@
     <style>
       body { background-color: #0f1923; color: white; -webkit-tap-highlight-color: transparent; }
       .no-scrollbar::-webkit-scrollbar { display: none; }
-      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-      /* Анимации */
       .fade-in { animation: fadeIn 0.3s ease-in-out; }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-      /* Календарь */
       .day-cell {
         height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center;
         border-radius: 10px; font-weight: 600; font-size: 14px; color: #8eadcc; transition: all 0.2s; cursor: pointer; border: 1px solid transparent;
       }
       .day-cell.selected { background-color: #3899fa; color: white; box-shadow: 0 4px 12px rgba(56, 153, 250, 0.3); transform: scale(1.05); }
       .day-cell.today { border-color: rgba(56, 153, 250, 0.5); color: #3899fa; }
-      .day-cell.disabled { opacity: 0.3; pointer-events: none; }
+      /* Изменили стиль disabled на более явный */
+      .day-cell.disabled { opacity: 0.2; pointer-events: none; background-color: rgba(0,0,0,0.2); }
 
-      /* Слоты */
       .slot-btn {
         padding: 10px; border-radius: 12px; background: #182430; border: 1px solid #2f4d6a;
         color: white; font-weight: 600; font-size: 14px; transition: all 0.2s;
       }
       .slot-btn.active { background: #3899fa; border-color: #3899fa; box-shadow: 0 4px 12px rgba(56, 153, 250, 0.3); }
+
+      /* Стили для описания */
+      .desc-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+      .desc-expanded { -webkit-line-clamp: unset; }
     </style>
   </head>
   <body class="min-h-screen pb-6">
 
     <div id="view-home" class="flex flex-col relative fade-in">
-
         <header class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-[#0f1923]/80 backdrop-blur-md border-b border-white/5">
             <button onclick="Telegram.WebApp.close()" class="p-2 -ml-2 text-secondary hover:text-white transition-colors">
                 <span class="material-symbols-rounded">close</span>
             </button>
             <h1 class="text-lg font-bold text-white tracking-wide">Запись онлайн</h1>
-            <div class="w-8"></div> </header>
+            <div class="w-8"></div>
+        </header>
 
         <div class="flex flex-col items-center pt-24 pb-6 px-6 text-center">
             <div class="relative mb-4 group">
@@ -73,18 +72,20 @@
                     <img id="hero-avatar" src="" class="w-full h-full object-cover hidden">
                     <span id="hero-avatar-placeholder" class="material-symbols-rounded text-5xl text-secondary/30 w-full h-full flex items-center justify-center">storefront</span>
                 </div>
-                <div class="absolute bottom-1 right-1 w-5 h-5 bg-success border-4 border-bg rounded-full z-20"></div>
-                <div class="absolute inset-0 bg-primary/20 blur-2xl rounded-full -z-0 transform scale-150 opacity-50"></div>
+                <div id="status-dot" class="absolute bottom-1 right-1 w-5 h-5 bg-gray-500 border-4 border-bg rounded-full z-20"></div>
             </div>
 
             <h2 id="hero-title" class="text-2xl font-extrabold text-white mb-1 leading-tight tracking-tight">Загрузка...</h2>
 
             <div class="flex items-center gap-2 mb-4 bg-surface/50 px-3 py-1 rounded-full border border-white/5">
-                <span class="text-success text-[10px] animate-pulse">●</span>
-                <span id="hero-status" class="text-secondary text-xs font-bold uppercase tracking-wider">Открыто</span>
+                <span id="status-text-dot" class="text-gray-500 text-[10px]">●</span>
+                <span id="hero-status" class="text-secondary text-xs font-bold uppercase tracking-wider">Загрузка...</span>
             </div>
 
-            <p id="hero-desc" class="text-secondary text-sm leading-relaxed max-w-[280px] line-clamp-3"></p>
+            <div class="relative max-w-[280px]">
+                <p id="hero-desc" class="text-secondary text-sm leading-relaxed desc-clamp transition-all duration-300"></p>
+                <button id="btn-expand-desc" class="hidden text-primary text-xs font-bold mt-1 hover:underline">Читать полностью</button>
+            </div>
         </div>
 
         <div class="px-4 pb-24 space-y-3" id="services-list">
@@ -104,7 +105,7 @@
 
         <div class="bg-surface mx-4 rounded-2xl p-4 border border-border/50 shadow-lg mb-6">
             <div class="flex justify-between items-center mb-4">
-                <h3 id="cal-month" class="text-lg font-bold text-white capitalize">Сентябрь</h3>
+                <h3 id="cal-month" class="text-lg font-bold text-white capitalize"></h3>
                 <div class="flex gap-1">
                     <button id="btn-prev-month" class="p-1 hover:bg-white/5 rounded-lg text-secondary"><span class="material-symbols-rounded">chevron_left</span></button>
                     <button id="btn-next-month" class="p-1 hover:bg-white/5 rounded-lg text-secondary"><span class="material-symbols-rounded">chevron_right</span></button>
@@ -132,8 +133,13 @@
 
             <div class="space-y-4">
                 <div class="group">
+                    <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">ВАШЕ ИМЯ</label>
+                    <input type="text" id="inp-client-name" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="Как к вам обращаться?">
+                </div>
+
+                <div class="group">
                     <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">ВАШ ТЕЛЕФОН</label>
-                    <input type="tel" id="inp-phone" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="+7 (999) 000-00-00">
+                    <input type="tel" id="inp-phone" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="+7 (___) ___-__-__">
                 </div>
 
                 <div class="group">
@@ -165,7 +171,7 @@
         </button>
     </div>
 
-    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-surface border border-primary text-white px-6 py-3 rounded-full shadow-2xl z-[100] hidden transition-all flex items-center gap-2">
+    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-surface border border-primary text-white px-6 py-3 rounded-full shadow-2xl z-[100] hidden transition-all flex items-center gap-2 w-max max-w-[90%]">
         <span class="material-symbols-rounded text-primary">info</span>
         <span id="toast-msg" class="font-bold text-sm"></span>
     </div>
