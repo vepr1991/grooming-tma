@@ -1,6 +1,9 @@
 import { apiFetch, BASE_URL } from '../core/api';
 import { initTelegram, Telegram } from '../core/tg';
 
+// Объявляем глобальную переменную IMask (подключается через CDN в html)
+declare const IMask: any;
+
 initTelegram();
 
 // --- ICONS (SVG) ---
@@ -103,6 +106,17 @@ const els = {
     regAddress: document.getElementById('reg-address') as HTMLInputElement,
     btnFinishReg: document.getElementById('btn-finish-reg') as HTMLButtonElement,
 };
+
+// --- INIT PHONE MASK ---
+function initPhoneMask() {
+    if (els.phone && typeof IMask !== 'undefined') {
+        IMask(els.phone, {
+            mask: '+{7} (000) 000-00-00',
+            lazy: false
+        });
+    }
+}
+initPhoneMask();
 
 let currentAvatarUrl: string | null = null;
 let originalData = { name: '', address: '', phone: '', desc: '', avatarUrl: null as string | null };
@@ -208,7 +222,14 @@ async function loadProfile() {
         if (data.profile) {
             els.name.value = data.profile.salon_name || '';
             els.address.value = data.profile.address || '';
-            els.phone.value = data.profile.phone || '';
+
+            // Если есть сохраненный телефон, используем его, иначе маска
+            if (data.profile.phone) {
+                els.phone.value = data.profile.phone;
+                // Обновляем маску (значение)
+                if ((els.phone as any)._imask) (els.phone as any)._imask.updateValue();
+            }
+
             els.desc.value = data.profile.description || '';
             if (data.profile.avatar_url) setAvatar(data.profile.avatar_url);
         }
@@ -622,6 +643,7 @@ function renderCalendar() {
 }
 
 function changeMonth(offset: number) {
+    // Явно ставим 1-е число, чтобы избежать бага с 31-м числом при переключении месяцев
     viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1);
     renderCalendar();
 }
