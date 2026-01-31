@@ -17,11 +17,13 @@ if (!masterId) {
     showToast("Ошибка: Ссылка не содержит ID мастера");
 }
 
+// --- GLOBAL STATE ---
 let currentService: any = null;
 let selectedDateStr: string | null = null;
 let selectedSlot: string | null = null;
 let calDate = new Date();
 let masterSchedule: any[] = []; // Храним график работы
+let masterProfile: any = null;  // Храним профиль (включая timezone)
 
 const views = {
     home: document.getElementById('view-home')!,
@@ -38,17 +40,23 @@ const views = {
 
 async function init() {
     try {
-        const profile = await apiFetch(`/masters/${masterId}`);
-        renderHero(profile);
+        // 1. Загружаем профиль и сохраняем глобально
+        masterProfile = await apiFetch(`/masters/${masterId}`);
 
-        // Загружаем график работы для календаря и статуса
+        // Дефолтная таймзона для старых записей
+        if (!masterProfile.timezone) masterProfile.timezone = 'Asia/Almaty';
+
+        renderHero(masterProfile);
+
+        // 2. Загружаем график
         masterSchedule = await apiFetch(`/masters/${masterId}/schedule`);
-        updateShopStatus(); // Обновляем статус Открыто/Закрыто
+
+        // 3. Обновляем статус (Открыто/Закрыто) с учетом таймзоны
+        updateShopStatus();
 
         const services = await apiFetch(`/masters/${masterId}/services`);
         renderServices(services);
 
-        // Инициализация маски телефона
         initPhoneMask();
 
     } catch (e) {
@@ -73,7 +81,6 @@ function renderHero(master: any) {
     const descText = master.description || 'Описание отсутствует';
     descEl.textContent = descText;
 
-    // Логика раскрытия описания
     if (descText.length > 100) {
         const btnExpand = document.getElementById('btn-expand-desc')!;
         btnExpand.classList.remove('hidden');
@@ -99,6 +106,17 @@ function renderHero(master: any) {
 }
 
 function updateShopStatus() {
+    if (!masterProfile || !masterSchedule) return;
+
+    // Получаем текущее время В ГОРОДЕ МАСТЕРА (строка HH:MM)
+    const masterTimeStr = new Date().toLocaleTimeString('en-US', {
+        timeZone: masterProfile.timezone,
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
+    // Для упрощения берем текущий день недели (пока без учета перехода суток)
     const now = new Date();
     const dayOfWeek = now.getDay() || 7; // 1-7
     const todaySchedule = masterSchedule.find((s: any) => s.day_of_week === dayOfWeek);
@@ -110,15 +128,12 @@ function updateShopStatus() {
     let isOpen = false;
 
     if (todaySchedule) {
-        const start = new Date();
-        const [sh, sm] = todaySchedule.start_time.split(':');
-        start.setHours(parseInt(sh), parseInt(sm), 0);
+        // Сравниваем строки времени: "14:30" >= "09:00" && "14:30" < "18:00"
+        // Это надежно работает в формате 24h
+        const start = todaySchedule.start_time.slice(0,5);
+        const end = todaySchedule.end_time.slice(0,5);
 
-        const end = new Date();
-        const [eh, em] = todaySchedule.end_time.split(':');
-        end.setHours(parseInt(eh), parseInt(em), 0);
-
-        if (now >= start && now < end) {
+        if (masterTimeStr >= start && masterTimeStr < end) {
             isOpen = true;
         }
     }
@@ -208,7 +223,7 @@ function renderServices(services: any[]) {
                     el.classList.add('border-transparent');
                     el.querySelector('.chevron')?.classList.remove('rotate-180');
                     el.querySelector('.max-h-40')?.classList.remove('max-h-40', 'opacity-100');
-                    el.querySelector('.opacity-100')?.classList.remove('max-h-40', 'opacity-100'); // Fix class removal
+                    el.querySelector('.opacity-100')?.classList.remove('max-h-40', 'opacity-100');
                     el.lastElementChild?.classList.add('hidden', 'scale-0');
                 }
             });
@@ -266,7 +281,6 @@ function renderCalendar() {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
 
-    // Получаем рабочие дни (1-7) из графика
     const workingDays = masterSchedule.map((s: any) => s.day_of_week);
 
     for (let i = 1; i < firstDay; i++) {
@@ -288,7 +302,6 @@ function renderCalendar() {
         if (dateStr === todayStr) cell.classList.add('today');
         if (dateStr === selectedDateStr) cell.classList.add('selected');
 
-        // Блокируем, если день прошел ИЛИ мастер не работает
         if (isPast || !isWorkingDay) {
             cell.classList.add('disabled');
         } else {
@@ -306,16 +319,13 @@ function renderCalendar() {
     }
 }
 
-// --- ИСПРАВЛЕНИЕ НАВИГАЦИИ ---
 document.getElementById('btn-prev-month')!.onclick = () => {
-    // Сбрасываем число на 1-е, чтобы избежать бага с 31 января -> 3 марта
     calDate.setDate(1);
     calDate.setMonth(calDate.getMonth() - 1);
     renderCalendar();
 };
 
 document.getElementById('btn-next-month')!.onclick = () => {
-    // Сбрасываем число на 1-е
     calDate.setDate(1);
     calDate.setMonth(calDate.getMonth() + 1);
     renderCalendar();
@@ -326,7 +336,11 @@ async function loadSlots(date: string) {
     const wrapper = document.getElementById('slots-container')!;
 
     wrapper.classList.remove('hidden');
-    container.innerHTML = '<div class="col-span-4 text-center text-secondary text-sm">Поиск времени...</div>';
+    // Показываем спиннер во время загрузки
+    container.innerHTML = `
+        <div class="col-span-4 flex justify-center py-4">
+            <span class="material-symbols-rounded animate-spin text-primary">progress_activity</span>
+        </div>`;
 
     try {
         const slots = await apiFetch(`/masters/${masterId}/availability?date=${date}`);
@@ -338,26 +352,45 @@ async function loadSlots(date: string) {
         }
 
         slots.forEach((iso: string) => {
-            const time = new Date(iso).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+            // ВАЖНО: Форматируем дату в таймзону МАСТЕРА для отображения на кнопке
+            // iso содержит таймзону (напр +05:00), Date распарсит её корректно.
+            // toLocaleTimeString покажет часы/минуты именно для этой таймзоны.
+            const dateObj = new Date(iso);
+            const timeStr = dateObj.toLocaleTimeString('ru-RU', {
+                timeZone: masterProfile.timezone,
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
             const btn = document.createElement('button');
             btn.className = 'slot-btn';
-            btn.textContent = time;
+            btn.textContent = timeStr;
             btn.onclick = () => {
                 document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                selectedSlot = iso;
+                selectedSlot = iso; // На бэкенд отправляем полный ISO
 
                 const form = document.getElementById('booking-form')!;
                 form.classList.remove('hidden');
                 setTimeout(() => form.scrollIntoView({behavior: 'smooth'}), 100);
 
-                Telegram.WebApp.MainButton.setText(`Записаться на ${time}`);
+                Telegram.WebApp.MainButton.setText(`Записаться на ${timeStr}`);
                 Telegram.WebApp.MainButton.show();
             };
             container.appendChild(btn);
         });
+
+        // Подсказка для клиента
+        if (!document.getElementById('tz-hint')) {
+            const hint = document.createElement('p');
+            hint.id = 'tz-hint';
+            hint.className = 'col-span-4 text-center text-xs text-secondary/50 mt-2';
+            hint.textContent = `Время салона (Местное)`;
+            container.appendChild(hint);
+        }
+
     } catch (e) {
-        container.innerHTML = '<div class="col-span-4 text-center text-error text-sm">Ошибка</div>';
+        container.innerHTML = '<div class="col-span-4 text-center text-error text-sm">Ошибка загрузки слотов</div>';
     }
 }
 
@@ -383,12 +416,12 @@ async function submitBooking() {
                 master_tg_id: parseInt(masterId!),
                 service_id: currentService.id,
                 starts_at: selectedSlot,
-                client_name: clientName, // NEW
+                client_name: clientName,
                 client_phone: phone,
                 pet_name: petName,
                 pet_breed: petBreed,
                 comment: comment,
-                idempotency_key: Date.now().toString() // Генерируем ключ
+                idempotency_key: Date.now().toString()
             })
         });
 
