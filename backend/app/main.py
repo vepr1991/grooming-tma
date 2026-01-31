@@ -166,33 +166,38 @@ def get_my_appointments(user=Depends(validate_telegram_data)):
 
 @api_router.post("/me/appointments/{aid}/confirm")
 async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
-    # 1. Обновляем статус и сразу получаем данные записи (включая название услуги)
+    # 1. Сначала обновляем статус (Update возвращает только саму таблицу appointments)
     res = supabase.table("appointments") \
         .update({"status": "confirmed"}) \
         .eq("id", aid) \
         .eq("master_telegram_id", user['id']) \
-        .select("*, services(name)") \
         .execute()
 
     if not res.data:
         raise HTTPException(404, "Запись не найдена или не принадлежит вам")
 
-    appointment = res.data[0]
+    # 2. Теперь делаем отдельный запрос, чтобы получить название услуги
+    # (Select умеет делать join с services)
+    res_details = supabase.table("appointments") \
+        .select("*, services(name)") \
+        .eq("id", aid) \
+        .single() \
+        .execute()
 
-    # 2. УВЕДОМЛЕНИЕ КЛИЕНТУ
+    appointment = res_details.data
+
+    # 3. УВЕДОМЛЕНИЕ КЛИЕНТУ
     client_id = appointment.get('client_telegram_id')
 
     if client_id:
-        # Пытаемся красиво отформатировать дату
         try:
             dt_obj = datetime.fromisoformat(appointment['starts_at'])
-            # Для простоты показываем время как есть (оно в UTC), 
-            # или можно добавить +5 часов жестко, если салон в Алматы:
-            # dt_obj = dt_obj + timedelta(hours=5) 
+            # Можно добавить коррекцию времени, если нужно
             dt_str = dt_obj.strftime("%d.%m в %H:%M")
         except:
             dt_str = str(appointment['starts_at'])
 
+        # Получаем имя услуги из вложенного объекта
         service_name = appointment['services']['name'] if appointment.get('services') else "Груминг"
 
         msg_text = (
@@ -202,7 +207,6 @@ async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
             f"📍 Ждем вас!"
         )
 
-        # Отправляем, не дожидаясь ответа, чтобы не задерживать интерфейс
         await send_telegram_message(client_id, msg_text)
 
     return appointment
