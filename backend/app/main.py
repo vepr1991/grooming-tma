@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 import json
 import uuid
+import os
+import requests  # <--- Нужно для отправки сообщений
 from datetime import datetime, timedelta
 
 # Импортируем наши модули
@@ -19,6 +21,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- CONFIG ---
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # Токен должен быть в переменных окружения
+
+
+# --- UTILS ---
+def send_telegram_message(chat_id: int, text: str):
+    """Отправляет сообщение в Telegram через Bot API"""
+    if not BOT_TOKEN:
+        print("WARNING: BOT_TOKEN not set, notification skipped")
+        return
+
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML"
+    }
+
+    try:
+        # Используем requests для синхронной отправки (быстро и надежно для MVP)
+        response = requests.post(url, json=payload, timeout=5)
+        if response.status_code != 200:
+            print(f"Telegram API Error: {response.text}")
+    except Exception as e:
+        print(f"Failed to send notification: {e}")
 
 
 # --- PYDANTIC MODELS ---
@@ -49,7 +77,7 @@ class AppointmentCreate(BaseModel):
     service_id: int
     master_tg_id: int
     starts_at: str
-    client_name: str  # <--- ДОБАВЛЕНО
+    client_name: str
     client_phone: str
     pet_name: str
     pet_breed: Optional[str] = None
@@ -155,6 +183,9 @@ async def get_my_appointments(user=Depends(validate_telegram_data)):
 async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
     res = supabase.table("appointments").update({"status": "confirmed"}) \
         .eq("id", aid).eq("master_telegram_id", user['id']).execute()
+
+    # Можно добавить уведомление клиенту здесь (если нужно)
+
     return res.data
 
 
@@ -239,7 +270,6 @@ async def get_master_availability(master_id: int, date: str):
 
 @app.get("/masters/{master_id}/schedule")
 async def get_master_schedule(master_id: int):
-    """Возвращает график работы для подсветки календаря на клиенте"""
     res = supabase.table("working_hours").select("day_of_week, start_time, end_time").eq("master_telegram_id",
                                                                                          master_id).execute()
     return res.data
@@ -253,10 +283,10 @@ async def create_appointment_public(app_data: AppointmentCreate, user=Depends(va
     data['client_username'] = user.get('username')
     data['status'] = 'pending'
 
-    # Исправление ошибки с idempotency_key
     if not data.get('idempotency_key'):
         data['idempotency_key'] = str(uuid.uuid4())
 
+    # 1. Проверка на занятость
     exist = supabase.table("appointments") \
         .select("id") \
         .eq("master_telegram_id", data['master_telegram_id']) \
@@ -267,5 +297,30 @@ async def create_appointment_public(app_data: AppointmentCreate, user=Depends(va
     if exist.data:
         raise HTTPException(status_code=409, detail="Slot already booked")
 
+    # 2. Сохранение в БД
     res = supabase.table("appointments").insert(data).execute()
+
+    # 3. ОТПРАВКА УВЕДОМЛЕНИЯ МАСТЕРУ В TELEGRAM
+    try:
+        # Форматируем дату красиво
+        dt = datetime.fromisoformat(data['starts_at'].replace('Z', '+00:00'))
+        date_str = dt.strftime("%d.%m.%Y в %H:%M")
+
+        msg = (
+            f"🆕 <b>Новая запись!</b>\n\n"
+            f"👤 <b>Клиент:</b> {data.get('client_name', 'Без имени')} "
+            f"(@{data.get('client_username', '-')})\n"
+            f"📞 <b>Телефон:</b> <code>{data.get('client_phone')}</code>\n"
+            f"🐶 <b>Питомец:</b> {data.get('pet_name')} "
+            f"{f'({data.get('pet_breed')})' if data.get('pet_breed') else ''}\n"
+            f"🗓 <b>Время:</b> {date_str}\n"
+        )
+        if data.get('comment'):
+            msg += f"💬 <b>Комментарий:</b> {data.get('comment')}"
+
+        send_telegram_message(data['master_telegram_id'], msg)
+
+    except Exception as e:
+        print(f"Notification Error: {e}")
+
     return res.data
