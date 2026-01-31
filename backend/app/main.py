@@ -1,3 +1,6 @@
+# (c) 2026 Владимир Коваленко. Все права защищены.
+# Данный код является интеллектуальной собственностью автора.
+# Использование, копирование или распространение без разрешения запрещено.
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

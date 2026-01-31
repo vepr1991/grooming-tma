@@ -1,3 +1,7 @@
+/**
+ * (c) 2026 Vladimir Kovalenko. All rights reserved.
+ * Proprietary software. Unauthorized copying is strictly prohibited.
+ */
 import { apiFetch } from '../core/api';
 import { initTelegram, Telegram } from '../core/tg';
 
