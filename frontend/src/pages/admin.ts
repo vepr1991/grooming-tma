@@ -793,10 +793,11 @@ function createRecordCardHTML(record: any) {
     const clientName = record.client_name || 'Клиент';
     const clientNote = record.comment;
 
+    // ADDED: w-full overflow-hidden (parent), break-words whitespace-pre-wrap (p)
     const noteHTML = clientNote ? `
-        <div class="bg-[#0f1923] rounded-xl p-3 border border-gray-800/50 mt-1">
+        <div class="bg-[#0f1923] rounded-xl p-3 border border-gray-800/50 mt-1 w-full overflow-hidden">
           <span class="text-[10px] text-blue-400 font-bold uppercase tracking-wider block mb-1">Комментарий клиента</span>
-          <p class="text-xs text-gray-400 leading-relaxed">${clientNote}</p>
+          <p class="text-xs text-gray-400 leading-relaxed break-words whitespace-pre-wrap">${clientNote}</p>
         </div>` : '';
 
     return `
