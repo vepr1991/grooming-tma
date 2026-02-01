@@ -1,6 +1,8 @@
+# backend/app/routers/admin.py
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from typing import List
 from datetime import datetime
+import pytz
 
 from app.auth import validate_telegram_data
 from app.db import supabase
@@ -38,7 +40,12 @@ async def update_profile(data: MasterProfileUpdate, user=Depends(validate_telegr
 
 @router.get("/services")
 async def get_services(user=Depends(validate_telegram_data)):
-    res = supabase.table("services").select("*").eq("master_telegram_id", user['id']).execute()
+    # FIX: Показываем только активные услуги
+    res = supabase.table("services") \
+        .select("*") \
+        .eq("master_telegram_id", user['id']) \
+        .eq("is_active", True) \
+        .execute()
     return res.data
 
 
@@ -46,14 +53,21 @@ async def get_services(user=Depends(validate_telegram_data)):
 async def create_service(srv: ServiceCreate, user=Depends(validate_telegram_data)):
     data = srv.model_dump()
     data['master_telegram_id'] = user['id']
+    data['is_active'] = True  # Новые услуги всегда активны
     res = supabase.table("services").insert(data).execute()
     return res.data
 
 
 @router.delete("/services/{sid}")
 async def delete_service(sid: int, user=Depends(validate_telegram_data)):
-    res = supabase.table("services").delete().eq("id", sid).eq("master_telegram_id", user['id']).execute()
-    return {"status": "deleted"}
+    # FIX: Soft Delete вместо физического удаления
+    # Это предотвращает ошибку Foreign Key Constraint
+    res = supabase.table("services") \
+        .update({"is_active": False}) \
+        .eq("id", sid) \
+        .eq("master_telegram_id", user['id']) \
+        .execute()
+    return {"status": "archived"}
 
 
 @router.get("/working-hours")
@@ -87,14 +101,11 @@ async def get_my_appointments(user=Depends(validate_telegram_data)):
 
 @router.post("/appointments/{aid}/confirm")
 async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
-    # 1. Обновляем статус в БД
     res = supabase.table("appointments").update({"status": "confirmed"}) \
         .eq("id", aid).eq("master_telegram_id", user['id']).execute()
 
     if res.data:
-        # 2. Отправляем уведомление клиенту
         try:
-            # Получаем детали записи, включая имя услуги
             details = supabase.table("appointments").select("*, services(name)").eq("id", aid).single().execute()
             appt = details.data
 
@@ -102,59 +113,46 @@ async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
                 service_name = appt.get('services', {}).get('name', 'Груминг') if appt.get('services') else "Груминг"
                 pet_name = appt.get('pet_name', 'Не указано')
 
-                # TODO: Тут стоит поправить таймзону (сейчас UTC), но пока оставляем как есть по вашему запросу
-                dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
+                # Попытка форматирования даты (здесь UTC, таймзона мастера может быть добавлена позже)
+                try:
+                    dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
+                    date_str = dt.strftime('%d.%m в %H:%M')
+                except:
+                    date_str = str(appt['starts_at'])
 
-                # Формируем красивое сообщение
                 msg = (
                     f"✅ <b>Ваша запись подтверждена!</b>\n\n"
                     f"🐶 Питомец: <b>{pet_name}</b>\n"
                     f"✂️ Услуга: {service_name}\n"
-                    f"🗓 Время: {dt.strftime('%d.%m в %H:%M')}\n\n"
+                    f"🗓 Время: {date_str}\n\n"
                     f"📍 Ждем вас!"
                 )
-
                 send_telegram_message(appt['client_telegram_id'], msg)
         except Exception as e:
             print(f"Notify error: {e}")
-
     return res.data
 
 
 @router.post("/appointments/{aid}/cancel")
 async def cancel_appointment(aid: int, user=Depends(validate_telegram_data)):
-    # 1. Обновляем статус
     res = supabase.table("appointments").update({"status": "cancelled"}) \
         .eq("id", aid).eq("master_telegram_id", user['id']).execute()
 
-    # 2. Если успешно, отправляем уведомление
     if res.data:
         try:
-            details = supabase.table("appointments") \
-                .select("*, services(name)") \
-                .eq("id", aid) \
-                .single() \
-                .execute()
-
+            details = supabase.table("appointments").select("*, services(name)").eq("id", aid).single().execute()
             appt = details.data
-            client_id = appt.get('client_telegram_id')
+            if appt and appt.get('client_telegram_id'):
+                service_name = appt.get('services', {}).get('name', 'Груминг') if appt.get('services') else "Груминг"
+                pet_name = appt.get('pet_name', 'Не указано')
 
-            if client_id:
                 try:
-                    # TODO: Здесь тоже можно будет внедрить таймзону мастера
                     dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
-                    date_str = dt.strftime("%d.%m в %H:%M")
+                    date_str = dt.strftime('%d.%m в %H:%M')
                 except:
                     date_str = str(appt.get('starts_at', ''))
 
-                service_name = "Груминг"
-                if appt.get('services') and isinstance(appt['services'], dict):
-                    service_name = appt['services'].get('name', service_name)
-
-                # Достаем имя питомца
-                pet_name = appt.get('pet_name', 'Не указано')
-
-                msg_text = (
+                msg = (
                     f"🚫 <b>Запись отменена</b>\n\n"
                     f"К сожалению, мастер отменил вашу запись.\n\n"
                     f"🐶 Питомец: <b>{pet_name}</b>\n"
@@ -162,10 +160,7 @@ async def cancel_appointment(aid: int, user=Depends(validate_telegram_data)):
                     f"🗓 Время: {date_str}\n\n"
                     f"Пожалуйста, выберите другое удобное время."
                 )
-
-                send_telegram_message(client_id, msg_text)
-
-        except Exception as e:
-            print(f"Error sending cancel notification: {e}")
-
+                send_telegram_message(appt['client_telegram_id'], msg)
+        except Exception:
+            pass
     return res.data
