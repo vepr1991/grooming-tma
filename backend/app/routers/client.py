@@ -121,23 +121,44 @@ async def create_appointment_public(
         app_data: AppointmentCreate,
         user=Depends(validate_telegram_data)
 ):
+    # Создаем запись через сервис
     new_appt = await AppointmentService.create(
         data=app_data,
         client_id=user['id'],
         client_username=user.get('username')
     )
 
+    # Отправляем уведомление мастеру
     try:
+        # Форматируем время (приводим к UTC+0 для парсинга, но в идеале надо учитывать часовой пояс мастера)
         dt_str = new_appt['starts_at'].replace('Z', '+00:00')
         dt = datetime.fromisoformat(dt_str)
 
+        # 1. Формируем строку клиента: "Имя (@username)" или просто "Имя"
+        client_line = f"👤 Клиент: {new_appt.get('client_name', 'Не указано')}"
+        if new_appt.get('client_username'):
+            client_line += f" (@{new_appt['client_username']})"
+
+        # 2. Формируем строку питомца: "Кличка (Порода)" или просто "Кличка"
+        pet_line = f"🐶 Питомец: {new_appt.get('pet_name', 'Не указано')}"
+        if new_appt.get('pet_breed'):
+            pet_line += f" ({new_appt['pet_breed']})"
+
+        # 3. Формируем комментарий (если есть)
+        comment_section = ""
+        if new_appt.get('comment'):
+            comment_section = f"\n💬 Комментарий: {new_appt['comment']}"
+
+        # Собираем итоговое сообщение
         msg = (
-            f"🆕 <b>Новая запись!</b>\n"
-            f"👤 {new_appt.get('client_name')}\n"
-            f"📞 {new_appt.get('client_phone')}\n"
-            f"🐶 {new_appt.get('pet_name')}\n"
-            f"🗓 {dt.strftime('%d.%m в %H:%M')}"
+            f"🆕 <b>Новая запись!</b>\n\n"
+            f"{client_line}\n"
+            f"📞 Телефон: {new_appt.get('client_phone')}\n"
+            f"{pet_line}\n"
+            f"🗓 Время: {dt.strftime('%d.%m.%Y в %H:%M')}"
+            f"{comment_section}"
         )
+
         send_telegram_message(new_appt['master_telegram_id'], msg)
     except Exception as e:
         print(f"Notify error: {e}")
