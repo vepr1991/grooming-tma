@@ -320,13 +320,13 @@ async function loadServices() {
             card.className = 'w-full bg-surface-dark/40 border border-border-dark/50 rounded-xl overflow-hidden transition-all mb-3';
 
             const header = document.createElement('div');
-            header.className = 'p-4 flex justify-between items-center transition-colors min-h-[72px] relative';
+            header.className = 'p-4 flex justify-between items-center transition-colors min-h-[72px]';
 
             const infoDiv = document.createElement('div');
-            infoDiv.className = 'flex flex-col gap-1 pr-10 overflow-hidden';
+            infoDiv.className = 'flex flex-col gap-1 flex-1 min-w-0';
 
             const nameSpan = document.createElement('span');
-            nameSpan.className = 'text-white font-bold text-base leading-tight truncate';
+            nameSpan.className = 'text-white font-bold text-base leading-tight break-words';
             nameSpan.textContent = s.name;
 
             const detailsSpan = document.createElement('span');
@@ -337,7 +337,7 @@ async function loadServices() {
             infoDiv.appendChild(detailsSpan);
 
             const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2';
+            actionsDiv.className = 'flex items-center gap-1 shrink-0 ml-3';
 
             const delBtn = document.createElement('button');
             delBtn.className = 'text-text-secondary/40 hover:text-red-400 p-2 rounded-full hover:bg-white/10 transition-colors z-20';
