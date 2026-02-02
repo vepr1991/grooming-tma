@@ -95,7 +95,7 @@ async function loadMasterInfo() {
             els.heroDesc.textContent = 'Нет описания';
         }
 
-        // 2. Carousel Logic (Отображаем фото из массива)
+        // 2. Carousel Logic
         renderClientCarousel();
 
         // 3. Status logic
@@ -114,7 +114,6 @@ function renderClientCarousel() {
     if (!els.carouselTrack) return;
     els.carouselTrack.innerHTML = '';
     
-    // Получаем массив фото. Если это JSON-строка (как в БД), парсим её.
     let photos: string[] = [];
     
     if (masterData.photos) {
@@ -124,18 +123,15 @@ function renderClientCarousel() {
             try {
                 photos = JSON.parse(masterData.photos);
             } catch (e) {
-                // Если не парсится, возможно это просто одна ссылка?
                 photos = [masterData.photos]; 
             }
         }
     }
     
-    // Фоллбэк на старую аватарку
     if (photos.length === 0 && masterData.avatar_url) {
         photos = [masterData.avatar_url];
     }
 
-    // Если совсем пусто
     if (photos.length === 0) {
         els.carouselTrack.innerHTML = `
             <div class="flex-shrink-0 w-full h-full snap-center bg-[#182430] flex flex-col items-center justify-center text-secondary/30">
@@ -144,7 +140,6 @@ function renderClientCarousel() {
         return;
     }
 
-    // Рендер фото
     photos.forEach((url, index) => {
         const slide = document.createElement('div');
         slide.className = 'flex-shrink-0 w-full h-full snap-center';
@@ -152,7 +147,6 @@ function renderClientCarousel() {
         els.carouselTrack.appendChild(slide);
     });
 
-    // Точки (индикаторы)
     if (els.carouselIndicators) {
         els.carouselIndicators.innerHTML = '';
         if (photos.length > 1) {
@@ -272,7 +266,14 @@ function renderCalendar() {
         const date = new Date(year, month, d);
         const isPast = date < today;
         const isToday = date.getTime() === today.getTime();
-        const dateStr = date.toISOString().split('T')[0];
+        
+        // --- ФИКС ДАТЫ (ТЕПЕРЬ БЕЗ СДВИГА) ---
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${day}`; // Ручная сборка строки YYYY-MM-DD
+        // -------------------------------------
+
         const isSelected = selectedDate === dateStr;
 
         const cell = document.createElement('div');
@@ -340,14 +341,13 @@ async function onMainButtonClick() {
     Telegram.WebApp.MainButton.showProgress();
     
     try {
-        // Prepare Payload - ВАЖНО: имена полей соответствуют новой схеме
         const payload = {
             master_telegram_id: parseInt(masterId),
             service_id: selectedService.id,
             starts_at: selectedSlot,
             client_name: name,
             client_phone: phone,
-            client_username: Telegram.WebApp.initDataUnsafe?.user?.username || null, // Отправляем null если нет
+            client_username: Telegram.WebApp.initDataUnsafe?.user?.username || null,
             pet_name: els.inpPetName.value.trim(),
             pet_breed: els.inpPetBreed.value.trim() || null,
             comment: els.inpComment.value.trim() || null
