@@ -1,26 +1,32 @@
-from pydantic import BaseModel, field_validator
-from typing import Optional
-from datetime import datetime
-import re
+from datetime import datetime, timedelta
+from app.db import supabase
+from app.schemas.appointment import AppointmentCreate
 
-# УДАЛИТЕ ЛИШНИЙ ИМПОРТ ЗДЕСЬ (from app.schemas.appointment import ...)
+class AppointmentService:
+    @staticmethod
+    async def create(data: AppointmentCreate, client_id: int, client_username: str = None):
+        # 1. Превращаем Pydantic-модель в словарь
+        appt_dict = data.model_dump()
+        
+        # 2. Формируем данные для вставки
+        # Мы берем значение по ключу 'master_telegram_id', который теперь точно есть в словаре
+        insert_data = {
+            "master_telegram_id": appt_dict['master_telegram_id'], 
+            "service_id": appt_dict['service_id'],
+            "client_telegram_id": client_id,
+            "client_username": client_username,
+            "client_name": appt_dict['client_name'],
+            "client_phone": appt_dict['client_phone'],
+            "pet_name": appt_dict['pet_name'],
+            "pet_breed": appt_dict.get('pet_breed'),
+            "comment": appt_dict.get('comment'),
+            "starts_at": appt_dict['starts_at'].isoformat(),
+            "status": "pending"
+        }
 
-class AppointmentCreate(BaseModel):
-    master_telegram_id: int
-    service_id: int
-    starts_at: datetime
-    
-    client_name: str
-    client_phone: str
-    client_username: Optional[str] = None
-    
-    pet_name: str
-    pet_breed: Optional[str] = None
-    comment: Optional[str] = None
-    idempotency_key: Optional[str] = None
-
-    @field_validator('client_phone')
-    def validate_phone(cls, v):
-        if not re.match(r'^[\d\+\(\)\-\s]{10,20}$', v):
-            raise ValueError('Некорректный формат телефона')
-        return v
+        # 3. Вставка в БД
+        res = supabase.table("appointments").insert(insert_data).execute()
+        
+        if res.data:
+            return res.data[0]
+        return None
