@@ -140,7 +140,6 @@ p { color: var(--c-text-sec); }
 }
 .input-full:focus { 
     border-color: var(--c-primary); 
-    /* background: var(--c-bg); */ /* Опционально */
 }
 
 /* Кнопки */
