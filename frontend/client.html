@@ -20,6 +20,7 @@
         } else {
           document.documentElement.classList.remove('dark');
         }
+        
         if (tg) { 
             tg.ready(); 
             try { tg.expand(); } catch(e){}
@@ -55,20 +56,22 @@
       }
     </script>
     <link rel="stylesheet" href="./src/style.css">
+    
     <style>
-      body { background-color: var(--c-bg); color: var(--c-text-main); -webkit-tap-highlight-color: transparent; }
+      body { 
+          background-color: var(--c-bg); 
+          color: var(--c-text-main); 
+          -webkit-tap-highlight-color: transparent; 
+      }
       .text-fixed-white { color: #ffffff !important; }
       
-      .fade-in { animation: fadeIn 0.3s ease-in-out; }
-      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
       .desc-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
       .desc-expanded { -webkit-line-clamp: unset; }
     </style>
   </head>
-  <body class="min-h-screen">
+  <body class="min-h-screen pb-10">
 
-    <div id="view-home" class="flex flex-col relative fade-in pb-10">
+    <div id="view-home" class="flex flex-col relative pb-10">
         <header class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-bg/95 backdrop-blur-md border-b border-border/30 transition-colors duration-300">
             <button onclick="Telegram.WebApp.close()" class="p-2 -ml-2 text-secondary hover:text-white transition-colors">
                 <span class="material-symbols-rounded">close</span>
@@ -106,7 +109,7 @@
         </div>
     </div>
 
-    <div id="view-booking" class="hidden min-h-screen bg-bg flex-col pt-4 fade-in pb-10">
+    <div id="view-booking" class="hidden min-h-screen bg-bg flex-col pt-4 pb-10">
         <header class="px-4 mb-4">
             <button onclick="goBack()" class="flex items-center gap-1 text-secondary hover:text-white transition-colors mb-2">
                 <span class="material-symbols-rounded text-xl">arrow_back</span>
@@ -141,7 +144,7 @@
             <div id="slots-grid" class="grid grid-cols-4 gap-2"></div>
         </div>
 
-        <div id="booking-form" class="px-4 space-y-4 hidden fade-in">
+        <div id="booking-form" class="px-4 space-y-4 hidden">
             <h3 class="text-sm font-bold text-secondary uppercase tracking-wider">Детали записи</h3>
 
             <div class="space-y-4">
@@ -173,7 +176,7 @@
         </div>
     </div>
 
-    <div id="view-success" class="hidden min-h-screen flex flex-col items-center justify-center p-6 text-center fade-in bg-bg">
+    <div id="view-success" class="hidden min-h-screen flex flex-col items-center justify-center p-6 text-center bg-bg">
         <div class="w-24 h-24 bg-success/20 rounded-full flex items-center justify-center mb-6 ring-4 ring-success/10">
             <span class="material-symbols-rounded text-6xl text-success">check</span>
         </div>
