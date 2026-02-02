@@ -233,7 +233,6 @@ function toggleEditMode(enable: boolean) {
             desc: els.desc.value, photos: [...currentPhotos]
         };
         inputs.forEach(inp => inp.removeAttribute('readonly'));
-        els.name.focus();
         els.btnEditMode.classList.add('hidden');
         els.editActions.classList.remove('hidden');
         els.editActions.classList.add('flex');
