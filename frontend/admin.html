@@ -5,7 +5,7 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>Профиль мастера</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-      <script src="https://unpkg.com/imask"></script>
+    <script src="https://unpkg.com/imask"></script>
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -33,6 +33,7 @@
         },
       }
     </script>
+    <link rel="stylesheet" href="./src/style.css"> 
     <style>
       :root { --tg-theme-button-color: #3899fa; --tg-theme-button-text-color: #ffffff; }
       body { min-height: 100dvh; background-color: #101a23; }
@@ -42,6 +43,10 @@
       .tab-btn.active { border-bottom-color: #3899fa; color: white; }
       .tab-content { display: none; }
       .tab-content.active { display: block; }
+
+      /* Важно для карусели */
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
       .group:has(input[readonly]) div, .group:has(textarea[readonly]) div {
           background-color: transparent; border-color: rgba(47, 77, 106, 0.2);
@@ -98,19 +103,23 @@
 
         <div id="tab-profile" class="tab-content active">
            <div class="flex p-6 py-6 justify-center">
-               <div id="avatar-container" class="relative group cursor-pointer pointer-events-none" onclick="document.getElementById('avatar-input').click()">
-                   <div class="relative">
-                       <div class="w-32 h-32 rounded-full ring-4 ring-surface-dark shadow-xl overflow-hidden bg-surface-dark flex items-center justify-center">
-                           <img id="avatar-img" src="" class="w-full h-full object-cover hidden">
-                           <span id="avatar-placeholder" class="material-symbols-outlined text-5xl text-text-secondary/50">storefront</span>
+               
+               <div id="photo-carousel-container" class="relative w-full max-w-[320px] mx-auto mb-6">
+                   <input type="file" id="photo-input" accept="image/*" class="hidden">
+
+                   <div 
+                       id="carousel-track"
+                       class="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide rounded-[32px] border-4 border-[#182430] shadow-2xl aspect-square bg-[#0f1923]"
+                   >
                        </div>
-                       <div id="avatar-overlay" class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden">
-                           <span class="material-symbols-outlined text-white text-3xl">photo_camera</span>
-                       </div>
+
+                   <div id="carousel-indicators" class="flex justify-center gap-1.5 mt-4 min-h-[6px]"></div>
+                   
+                   <div class="text-center mt-3">
+                       <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Фотографии салона</p>
                    </div>
-                   <div id="avatar-hint" class="flex flex-col items-center justify-center mt-3 opacity-0 transition-opacity"><p class="text-primary text-sm font-bold">Изменить логотип</p></div>
-                   <input type="file" id="avatar-input" accept="image/*" class="hidden">
                </div>
+
            </div>
            <div class="px-4 flex flex-col gap-5 pb-24">
                <label class="flex flex-col w-full group">
@@ -177,7 +186,7 @@
 
         <div id="tab-schedule" class="tab-content">
            <div class="px-4 pt-6 pb-2">
-               <h3 class="text-lg font-bold">Рабочие часы</h3>
+               <h3 class="text-white text-lg font-bold">Рабочие часы</h3>
                <p class="text-text-secondary text-sm">Настройте доступность.</p>
            </div>
            <div id="schedule-container" class="divide-y divide-border-dark/30"></div>

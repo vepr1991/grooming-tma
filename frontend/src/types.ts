@@ -3,6 +3,7 @@ export interface Service {
     name: string;
     price: number;
     duration_min: number;
+    description?: string; // Добавили ? так как может не быть
 }
 
 export interface MasterProfile {
@@ -11,4 +12,5 @@ export interface MasterProfile {
     phone: string;
     description: string;
     avatar_url: string;
+    timezone: string; // <--- НОВОЕ ПОЛЕ
 }
