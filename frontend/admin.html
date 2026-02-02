@@ -100,7 +100,7 @@
         </div>
     </div>
 
-    <div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden pb-24 max-w-md mx-auto border-x border-border-dark/20 shadow-2xl bg-background-dark">
+    <div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden max-w-md mx-auto border-x border-border-dark/20 shadow-2xl bg-background-dark">
 
       <div class="sticky top-0 z-20 bg-background-dark/95 backdrop-blur-sm border-b border-border-dark">
         <div class="flex items-center p-4 pb-2 justify-between">
@@ -131,7 +131,7 @@
                    </div>
                </div>
            </div>
-           <div class="px-4 flex flex-col gap-5 pb-24">
+           <div class="px-4 flex flex-col gap-5 pb-28">
                <label class="flex flex-col w-full group">
                    <p class="text-text-secondary/60 text-sm font-semibold pb-2 ml-1 group-focus-within:text-primary transition-colors">Название салона</p>
                    <div class="flex w-full rounded-xl border border-border-dark/50 bg-surface-dark/40 focus-within:bg-surface-dark focus-within:border-primary/60 transition-all h-14 items-center px-[15px] shadow-sm">
@@ -168,7 +168,7 @@
            </div>
         </div>
 
-        <div id="tab-services" class="tab-content p-4 space-y-4 pb-24">
+        <div id="tab-services" class="tab-content p-4 space-y-4 pb-6">
            <div class="flex justify-between items-center mb-2">
                <h3 class="text-white text-xl font-bold">Список услуг</h3>
                <button id="btn-toggle-add-service" class="bg-primary hover:bg-primary/90 text-fixed-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 active:scale-95 transition-all shadow-lg shadow-primary/20"><span class="material-symbols-outlined text-[18px]">add</span> Добавить</button>
@@ -200,7 +200,7 @@
                <p class="text-text-secondary text-sm">Настройте доступность.</p>
            </div>
            <div id="schedule-container" class="divide-y divide-border-dark/30"></div>
-           <div class="p-4 pb-24">
+           <div class="p-4 pb-6">
                <button id="btn-save-schedule" class="w-full flex items-center justify-center gap-2 h-14 rounded-xl text-fixed-white font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all bg-primary hover:bg-primary/90">Сохранить график</button>
            </div>
         </div>
@@ -208,7 +208,8 @@
         <div id="tab-appointments" class="tab-content pb-24">
             <div id="calendar-container" class="sticky top-0 z-30 bg-background-dark border-b border-border-dark shadow-xl shadow-black/5"></div>
             <div id="appointments-list" class="flex flex-col gap-3 p-4"></div>
-            <div class="fixed bottom-24 right-6 z-40">
+            
+            <div class="fixed bottom-6 right-6 z-40">
                 <button onclick="Telegram.WebApp.showAlert('Ручное добавление скоро будет')" class="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-fixed-white shadow-xl shadow-primary/40 hover:bg-primary/90 active:scale-95 transition-all duration-300">
                     <span class="material-symbols-outlined text-3xl">add</span>
                 </button>
