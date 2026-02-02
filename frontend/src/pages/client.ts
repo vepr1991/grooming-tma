@@ -134,7 +134,7 @@ function renderClientCarousel() {
 
     if (photos.length === 0) {
         els.carouselTrack.innerHTML = `
-            <div class="flex-shrink-0 w-full h-full snap-center bg-surface flex flex-col items-center justify-center text-secondary/30">
+            <div class="flex-shrink-0 w-full h-full snap-center bg-surface flex flex-col items-center justify-center text-secondary/50">
                 <span class="material-symbols-rounded text-6xl mb-2">storefront</span>
             </div>`;
         return;
