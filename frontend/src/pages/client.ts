@@ -78,7 +78,6 @@ async function loadMasterInfo() {
     try {
         masterData = await apiFetch(`/masters/${masterId}`);
         
-        // 1. Text Info
         els.heroTitle.textContent = masterData.salon_name || 'Мастер';
         
         if (masterData.description) {
@@ -95,10 +94,8 @@ async function loadMasterInfo() {
             els.heroDesc.textContent = 'Нет описания';
         }
 
-        // 2. Carousel Logic
         renderClientCarousel();
 
-        // 3. Status logic
         if (masterData.timezone) {
             checkOpenStatus(masterData.timezone);
         }
@@ -221,14 +218,33 @@ async function loadServices() {
     }
 }
 
+// --- BOOKING FLOW ---
+
+let calDate = new Date(); // Глобальная переменная для навигации календаря
+
 function openBooking(service: any) {
     selectedService = service;
     els.selectedServiceName.textContent = `${service.name} • ${service.price} ₸`;
+    
     views.home.classList.add('hidden');
     views.booking.classList.remove('hidden');
+    
     Telegram.WebApp.BackButton.show();
     Telegram.WebApp.BackButton.onClick(goBack);
+    
+    // --- FIX: АВТО-ВЫБОР СЕГОДНЯ ---
+    calDate = new Date(); // Сброс месяца на текущий
+    
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    selectedDate = `${y}-${m}-${d}`;
+    
     initCalendar();
+    
+    // Сразу грузим слоты для "сегодня"
+    loadSlots(selectedDate);
 }
 
 (window as any).goBack = goBack;
@@ -237,13 +253,13 @@ function goBack() {
     views.home.classList.remove('hidden');
     Telegram.WebApp.BackButton.hide();
     Telegram.WebApp.MainButton.hide();
+    
     selectedDate = null;
     selectedSlot = null;
     els.slotsContainer.classList.add('hidden');
     els.bookingForm.classList.add('hidden');
 }
 
-let calDate = new Date();
 function initCalendar() {
     renderCalendar();
     els.btnPrevMonth.onclick = () => { calDate.setMonth(calDate.getMonth() - 1); renderCalendar(); };
@@ -267,18 +283,17 @@ function renderCalendar() {
         const isPast = date < today;
         const isToday = date.getTime() === today.getTime();
         
-        // --- ФИКС ДАТЫ (ТЕПЕРЬ БЕЗ СДВИГА) ---
         const y = date.getFullYear();
         const m = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
-        const dateStr = `${y}-${m}-${day}`; // Ручная сборка строки YYYY-MM-DD
-        // -------------------------------------
+        const dateStr = `${y}-${m}-${day}`; 
 
         const isSelected = selectedDate === dateStr;
 
         const cell = document.createElement('div');
         cell.className = `day-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isPast ? 'disabled' : ''}`;
         cell.textContent = d.toString();
+        
         if (!isPast) {
             cell.onclick = () => {
                 document.querySelector('.day-cell.selected')?.classList.remove('selected');
@@ -300,10 +315,12 @@ async function loadSlots(date: string) {
     try {
         const slots = await apiFetch(`/masters/${masterId}/availability?date=${date}`);
         els.slotsGrid.innerHTML = '';
+        
         if (slots.length === 0) {
             els.slotsGrid.innerHTML = '<div class="col-span-4 text-center text-secondary/50 text-sm py-2">Нет мест</div>';
             return;
         }
+
         slots.forEach((isoTime: string) => {
             const time = new Date(isoTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: masterData.timezone });
             const btn = document.createElement('button');
