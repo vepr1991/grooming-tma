@@ -106,6 +106,10 @@ async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
 
     if res.data:
         try:
+            # 1. Получаем таймзону мастера
+            master_res = supabase.table("masters").select("timezone").eq("telegram_id", user['id']).single().execute()
+            tz_name = master_res.data.get('timezone', 'Asia/Almaty') if master_res.data else 'Asia/Almaty'
+
             details = supabase.table("appointments").select("*, services(name)").eq("id", aid).single().execute()
             appt = details.data
 
@@ -113,10 +117,12 @@ async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
                 service_name = appt.get('services', {}).get('name', 'Груминг') if appt.get('services') else "Груминг"
                 pet_name = appt.get('pet_name', 'Не указано')
 
-                # Попытка форматирования даты (здесь UTC, таймзона мастера может быть добавлена позже)
+                # 2. Конвертируем дату в таймзону мастера
                 try:
-                    dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
-                    date_str = dt.strftime('%d.%m в %H:%M')
+                    utc_dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
+                    master_tz = pytz.timezone(tz_name)
+                    local_dt = utc_dt.astimezone(master_tz)
+                    date_str = local_dt.strftime('%d.%m.%Y в %H:%M')
                 except:
                     date_str = str(appt['starts_at'])
 
@@ -140,15 +146,22 @@ async def cancel_appointment(aid: int, user=Depends(validate_telegram_data)):
 
     if res.data:
         try:
+            # 1. Получаем таймзону мастера
+            master_res = supabase.table("masters").select("timezone").eq("telegram_id", user['id']).single().execute()
+            tz_name = master_res.data.get('timezone', 'Asia/Almaty') if master_res.data else 'Asia/Almaty'
+
             details = supabase.table("appointments").select("*, services(name)").eq("id", aid).single().execute()
             appt = details.data
             if appt and appt.get('client_telegram_id'):
                 service_name = appt.get('services', {}).get('name', 'Груминг') if appt.get('services') else "Груминг"
                 pet_name = appt.get('pet_name', 'Не указано')
 
+                # 2. Конвертируем дату в таймзону мастера
                 try:
-                    dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
-                    date_str = dt.strftime('%d.%m в %H:%M')
+                    utc_dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
+                    master_tz = pytz.timezone(tz_name)
+                    local_dt = utc_dt.astimezone(master_tz)
+                    date_str = local_dt.strftime('%d.%m.%Y в %H:%M')
                 except:
                     date_str = str(appt.get('starts_at', ''))
 
