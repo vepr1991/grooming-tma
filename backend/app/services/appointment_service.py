@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from app.db import supabase
 from app.schemas.appointment import AppointmentCreate
 import uuid
+from datetime import datetime, timezone
 
 class AppointmentService:
     @staticmethod
@@ -12,8 +13,17 @@ class AppointmentService:
         # 1. Получаем данные
         appt_dict = data.model_dump()
         
+        # --- FIX: Валидация времени (нельзя в прошлое) ---
+        booking_time = data.starts_at
+        # Приводим к UTC для корректного сравнения
+        if booking_time.tzinfo is None:
+             booking_time = booking_time.replace(tzinfo=timezone.utc)
+        
+        if booking_time < datetime.now(timezone.utc):
+             raise HTTPException(status_code=400, detail="Нельзя записаться на прошедшее время")
+        # -------------------------------------------------
+
         # 2. Формируем объект для вставки
-        # ВАЖНО: Используем 'master_telegram_id' из схемы, он уже правильный
         insert_data = {
             "master_telegram_id": appt_dict['master_telegram_id'],
             "service_id": appt_dict['service_id'],
