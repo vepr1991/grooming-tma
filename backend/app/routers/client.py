@@ -12,7 +12,6 @@ router = APIRouter(tags=["Client"])
 
 @router.get("/masters/{master_id}")
 async def get_master_public_profile(master_id: int):
-    # ДОБАВИЛИ PHOTOS В ВЫБОРКУ
     res = supabase.table("masters") \
         .select("salon_name, description, avatar_url, address, phone, timezone, photos") \
         .eq("telegram_id", master_id) \
@@ -99,9 +98,13 @@ async def get_master_availability(master_id: int, date: str):
         except ValueError:
             pass
 
+    # --- FIX: Фильтрация прошедшего времени ---
+    now_in_master_tz = datetime.now(master_tz)
+    
     free_slots = []
     for s in slots:
-        if s not in busy_times:
+        # Показываем слот только если он в будущем (или сейчас) и не занят
+        if s > now_in_master_tz and s not in busy_times:
             free_slots.append(s.isoformat())
 
     return free_slots
