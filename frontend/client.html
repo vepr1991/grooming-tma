@@ -66,10 +66,10 @@
       .desc-expanded { -webkit-line-clamp: unset; }
     </style>
   </head>
-  <body class="min-h-screen pb-6">
+  <body class="min-h-screen">
 
-    <div id="view-home" class="flex flex-col relative fade-in">
-        <header class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-bg/80 backdrop-blur-md border-b border-white/5">
+    <div id="view-home" class="flex flex-col relative fade-in pb-10">
+        <header class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-bg/95 backdrop-blur-md border-b border-border/30 transition-colors duration-300">
             <button onclick="Telegram.WebApp.close()" class="p-2 -ml-2 text-secondary hover:text-white transition-colors">
                 <span class="material-symbols-rounded">close</span>
             </button>
@@ -90,7 +90,7 @@
 
             <h2 id="hero-title" class="text-2xl font-extrabold text-white mb-1 leading-tight tracking-tight">Загрузка...</h2>
 
-            <div class="flex items-center gap-2 mb-4 bg-surface/50 px-3 py-1 rounded-full border border-white/5">
+            <div class="flex items-center gap-2 mb-4 bg-surface/50 px-3 py-1 rounded-full border border-border">
                 <span id="status-text-dot" class="text-gray-500 text-[10px]">●</span>
                 <span id="hero-status" class="text-secondary text-xs font-bold uppercase tracking-wider">Загрузка...</span>
             </div>
@@ -101,12 +101,12 @@
             </div>
         </div>
 
-        <div class="px-4 pb-24 space-y-3" id="services-list">
+        <div class="px-4 space-y-3" id="services-list">
             <div class="text-center text-secondary py-10">Загрузка услуг...</div>
         </div>
     </div>
 
-    <div id="view-booking" class="hidden min-h-screen bg-bg flex-col pt-4 fade-in">
+    <div id="view-booking" class="hidden min-h-screen bg-bg flex-col pt-4 fade-in pb-10">
         <header class="px-4 mb-4">
             <button onclick="goBack()" class="flex items-center gap-1 text-secondary hover:text-white transition-colors mb-2">
                 <span class="material-symbols-rounded text-xl">arrow_back</span>
@@ -116,12 +116,12 @@
             <p id="selected-service-name" class="text-primary text-sm font-medium">Услуга</p>
         </header>
 
-        <div class="bg-surface mx-4 rounded-2xl p-4 border border-border/50 shadow-lg mb-6">
+        <div class="bg-surface mx-4 rounded-2xl p-4 border border-border shadow-lg mb-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 id="cal-month" class="text-lg font-bold text-white capitalize"></h3>
                 <div class="flex gap-1">
-                    <button id="btn-prev-month" class="p-1 hover:bg-white/5 rounded-lg text-secondary"><span class="material-symbols-rounded">chevron_left</span></button>
-                    <button id="btn-next-month" class="p-1 hover:bg-white/5 rounded-lg text-secondary"><span class="material-symbols-rounded">chevron_right</span></button>
+                    <button id="btn-prev-month" class="p-1 hover:bg-bg rounded-lg text-secondary"><span class="material-symbols-rounded">chevron_left</span></button>
+                    <button id="btn-next-month" class="p-1 hover:bg-bg rounded-lg text-secondary"><span class="material-symbols-rounded">chevron_right</span></button>
                 </div>
             </div>
             <div class="grid grid-cols-7 gap-1 mb-2 text-center">
@@ -141,33 +141,33 @@
             <div id="slots-grid" class="grid grid-cols-4 gap-2"></div>
         </div>
 
-        <div id="booking-form" class="px-4 space-y-4 pb-24 hidden fade-in">
+        <div id="booking-form" class="px-4 space-y-4 hidden fade-in">
             <h3 class="text-sm font-bold text-secondary uppercase tracking-wider">Детали записи</h3>
 
             <div class="space-y-4">
                 <div class="group">
                     <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">ВАШЕ ИМЯ</label>
-                    <input type="text" id="inp-client-name" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="Как к вам обращаться?">
+                    <input type="text" id="inp-client-name" class="w-full bg-surface border-2 border-border focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-secondary/30" placeholder="Как к вам обращаться?">
                 </div>
 
                 <div class="group">
                     <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">ВАШ ТЕЛЕФОН</label>
-                    <input type="tel" id="inp-phone" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="+7 (___) ___-__-__">
+                    <input type="tel" id="inp-phone" class="w-full bg-surface border-2 border-border focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-secondary/30" placeholder="+7 (___) ___-__-__">
                 </div>
 
                 <div class="group">
                     <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">КЛИЧКА ПИТОМЦА</label>
-                    <input type="text" id="inp-pet-name" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="Например: Бобик">
+                    <input type="text" id="inp-pet-name" class="w-full bg-surface border-2 border-border focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-secondary/30" placeholder="Например: Бобик">
                 </div>
 
                 <div class="group">
                     <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">ПОРОДА (Опционально)</label>
-                    <input type="text" id="inp-pet-breed" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10" placeholder="Например: Корги">
+                    <input type="text" id="inp-pet-breed" class="w-full bg-surface border-2 border-border focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-secondary/30" placeholder="Например: Корги">
                 </div>
 
                 <div class="group">
                     <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">КОММЕНТАРИЙ</label>
-                    <textarea id="inp-comment" rows="2" class="w-full bg-surface border-2 border-transparent focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-white/10 resize-none" placeholder="Особенности, пожелания..."></textarea>
+                    <textarea id="inp-comment" rows="2" class="w-full bg-surface border-2 border-border focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-secondary/30 resize-none" placeholder="Особенности, пожелания..."></textarea>
                 </div>
             </div>
         </div>
@@ -179,7 +179,7 @@
         </div>
         <h2 class="text-3xl font-extrabold text-white mb-2">Вы записаны!</h2>
         <p class="text-secondary mb-8 max-w-xs">Мастер получил вашу заявку. Мы отправим уведомление, когда запись будет подтверждена.</p>
-        <button onclick="Telegram.WebApp.close()" class="w-full max-w-sm bg-surface border border-border text-white font-bold py-4 rounded-xl active:scale-95 transition-all">
+        <button onclick="Telegram.WebApp.close()" class="w-full max-w-sm bg-surface border border-border text-white font-bold py-4 rounded-xl active:scale-95 transition-all hover:bg-surface/80">
             Закрыть
         </button>
     </div>
