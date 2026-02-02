@@ -1,4 +1,3 @@
-# backend/app/schemas/master.py
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -9,6 +8,7 @@ class MasterProfileUpdate(BaseModel):
     phone: Optional[str] = None
     description: Optional[str] = None
     avatar_url: Optional[str] = None
+    photos: Optional[List[str]] = None  # <--- Добавили массив фото
     timezone: Optional[str] = None
 
 # --- Услуги ---
