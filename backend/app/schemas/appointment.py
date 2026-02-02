@@ -1,27 +1,41 @@
-from pydantic import BaseModel, field_validator
-from typing import Optional
-from datetime import datetime
-import re
+# backend/app/services/appointment_service.py
+from datetime import datetime, timedelta
+from app.db import supabase
+from app.schemas.appointment import AppointmentCreate
 
-class AppointmentCreate(BaseModel):
-    master_telegram_id: int  # ИСПРАВЛЕНО: было master_tg_id, стало как в БД
-    service_id: int
-    starts_at: datetime      # Pydantic сам преобразует ISO-строку в datetime
-    
-    client_name: str
-    client_phone: str
-    client_username: Optional[str] = None # ДОБАВЛЕНО: чтобы не падало, если фронт шлет юзернейм
-    
-    pet_name: str
-    pet_breed: Optional[str] = None
-    comment: Optional[str] = None
-    
-    # Идемпотентность (защита от двойного клика)
-    idempotency_key: Optional[str] = None
+class AppointmentService:
+    @staticmethod
+    async def create(data: AppointmentCreate, client_id: int, client_username: str = None):
+        # 1. Превращаем Pydantic модель в словарь
+        appt_dict = data.model_dump()
+        
+        # 2. Логика получения ID мастера (адаптивная)
+        # Сначала ищем новое название поля, если нет - старое
+        master_id = appt_dict.get('master_telegram_id') or appt_dict.get('master_tg_id')
+        
+        if not master_id:
+            raise ValueError("Master ID is missing")
 
-    @field_validator('client_phone')
-    def validate_phone(cls, v):
-        # Оставляем простую проверку: цифры, +, -, пробелы, скобки
-        if not re.match(r'^[\d\+\(\)\-\s]{10,20}$', v):
-            raise ValueError('Некорректный формат телефона')
-        return v
+        # 3. Формируем данные для вставки в БД
+        # ВАЖНО: Используем ключи, которые точно есть в вашей таблице appointments
+        insert_data = {
+            "master_telegram_id": master_id,
+            "service_id": appt_dict['service_id'],
+            "client_telegram_id": client_id,
+            "client_username": client_username,
+            "client_name": appt_dict['client_name'],
+            "client_phone": appt_dict['client_phone'],
+            "pet_name": appt_dict['pet_name'],
+            "pet_breed": appt_dict.get('pet_breed'),
+            "comment": appt_dict.get('comment'),
+            "starts_at": appt_dict['starts_at'].isoformat(), # Приводим дату к строке
+            "status": "pending"
+        }
+
+        # 4. Вставка в БД
+        res = supabase.table("appointments").insert(insert_data).execute()
+        
+        # Возвращаем созданную запись (первый элемент списка)
+        if res.data:
+            return res.data[0]
+        return None
