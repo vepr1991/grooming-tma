@@ -143,9 +143,24 @@ async def create_appointment_public(
         except Exception:
             pass
 
-        # Форматируем дату
-        dt_str = new_appt['starts_at'].replace('Z', '+00:00')
-        dt = datetime.fromisoformat(dt_str)
+        # Достаем таймзону мастера
+        master_id = new_appt['master_telegram_id']
+        tz_name = 'Asia/Almaty'
+        try:
+            m_res = supabase.table("masters").select("timezone").eq("telegram_id", master_id).single().execute()
+            if m_res.data and m_res.data.get('timezone'):
+                tz_name = m_res.data['timezone']
+        except Exception:
+            pass
+
+        # Форматируем дату в таймзоне мастера
+        try:
+            utc_dt = datetime.fromisoformat(new_appt['starts_at'].replace('Z', '+00:00'))
+            master_tz = pytz.timezone(tz_name)
+            local_dt = utc_dt.astimezone(master_tz)
+            date_str = local_dt.strftime('%d.%m.%Y в %H:%M')
+        except:
+            date_str = str(new_appt['starts_at'])
 
         # Собираем строки
         client_line = f"👤 Клиент: {new_appt.get('client_name', 'Не указано')}"
@@ -167,7 +182,7 @@ async def create_appointment_public(
             f"📞 Телефон: {new_appt.get('client_phone')}\n"
             f"{pet_line}\n"
             f"✂️ Услуга: {service_name}\n"
-            f"🗓 Время: {dt.strftime('%d.%m.%Y в %H:%M')}"
+            f"🗓 Время: {date_str}\n\n"
             f"{comment_section}"
         )
 
