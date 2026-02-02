@@ -1,4 +1,3 @@
-# backend/app/routers/client.py
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime, timedelta
 import pytz
@@ -11,21 +10,19 @@ from app.services.appointment_service import AppointmentService
 
 router = APIRouter(tags=["Client"])
 
-
 @router.get("/masters/{master_id}")
 async def get_master_public_profile(master_id: int):
+    # ДОБАВИЛИ PHOTOS В ВЫБОРКУ
     res = supabase.table("masters") \
-        .select("salon_name, description, avatar_url, address, phone, timezone") \
+        .select("salon_name, description, avatar_url, address, phone, timezone, photos") \
         .eq("telegram_id", master_id) \
         .execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Master not found")
     return res.data[0]
 
-
 @router.get("/masters/{master_id}/services")
 async def get_master_services(master_id: int):
-    # FIX: Показываем клиенту только активные услуги
     res = supabase.table("services") \
         .select("*") \
         .eq("master_telegram_id", master_id) \
@@ -33,19 +30,13 @@ async def get_master_services(master_id: int):
         .execute()
     return res.data
 
-
 @router.get("/masters/{master_id}/schedule")
 async def get_master_schedule(master_id: int):
-    res = supabase.table("working_hours").select("day_of_week, start_time, end_time").eq("master_telegram_id",
-                                                                                         master_id).execute()
+    res = supabase.table("working_hours").select("day_of_week, start_time, end_time").eq("master_telegram_id", master_id).execute()
     return res.data
-
 
 @router.get("/masters/{master_id}/availability")
 async def get_master_availability(master_id: int, date: str):
-    """
-    Рассчитывает свободные слоты с учетом часового пояса мастера.
-    """
     master_res = supabase.table("masters").select("timezone").eq("telegram_id", master_id).single().execute()
     if not master_res.data:
         raise HTTPException(404, "Master not found")
@@ -115,45 +106,32 @@ async def get_master_availability(master_id: int, date: str):
 
     return free_slots
 
-
 @router.post("/appointments")
 async def create_appointment_public(
-        app_data: AppointmentCreate,
-        user=Depends(validate_telegram_data)
+    app_data: AppointmentCreate, 
+    user=Depends(validate_telegram_data)
 ):
-    # 1. Создаем запись
     new_appt = await AppointmentService.create(
         data=app_data,
         client_id=user['id'],
         client_username=user.get('username')
     )
-
-    # 2. Отправляем уведомление
+    
     try:
-        # Достаем название услуги по ID
         service_name = "Услуга"
         try:
-            srv_res = supabase.table("services") \
-                .select("name") \
-                .eq("id", new_appt['service_id']) \
-                .single() \
-                .execute()
+            srv_res = supabase.table("services").select("name").eq("id", new_appt['service_id']).single().execute()
             if srv_res.data:
                 service_name = srv_res.data.get('name', 'Услуга')
-        except Exception:
-            pass
+        except: pass
 
-        # Достаем таймзону мастера
-        master_id = new_appt['master_telegram_id']
         tz_name = 'Asia/Almaty'
         try:
-            m_res = supabase.table("masters").select("timezone").eq("telegram_id", master_id).single().execute()
-            if m_res.data and m_res.data.get('timezone'):
-                tz_name = m_res.data['timezone']
-        except Exception:
-            pass
+            master_res = supabase.table("masters").select("timezone").eq("telegram_id", new_appt['master_telegram_id']).single().execute()
+            if master_res.data and master_res.data.get('timezone'):
+                tz_name = master_res.data['timezone']
+        except: pass
 
-        # Форматируем дату в таймзоне мастера
         try:
             utc_dt = datetime.fromisoformat(new_appt['starts_at'].replace('Z', '+00:00'))
             master_tz = pytz.timezone(tz_name)
@@ -161,21 +139,19 @@ async def create_appointment_public(
             date_str = local_dt.strftime('%d.%m.%Y в %H:%M')
         except:
             date_str = str(new_appt['starts_at'])
-
-        # Собираем строки
+        
         client_line = f"👤 Клиент: {new_appt.get('client_name', 'Не указано')}"
         if new_appt.get('client_username'):
             client_line += f" (@{new_appt['client_username']})"
-
+            
         pet_line = f"🐶 Питомец: {new_appt.get('pet_name', 'Не указано')}"
         if new_appt.get('pet_breed'):
             pet_line += f" ({new_appt['pet_breed']})"
-
+            
         comment_section = ""
         if new_appt.get('comment'):
             comment_section = f"\n💬 Комментарий: {new_appt['comment']}"
 
-        # Итоговое сообщение
         msg = (
             f"🆕 <b>Новая запись!</b>\n\n"
             f"{client_line}\n"
@@ -185,9 +161,8 @@ async def create_appointment_public(
             f"🗓 Время: {date_str}\n\n"
             f"{comment_section}"
         )
-
         send_telegram_message(new_appt['master_telegram_id'], msg)
     except Exception as e:
         print(f"Notify error: {e}")
-
+        
     return new_appt
