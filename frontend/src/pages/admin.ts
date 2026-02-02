@@ -10,6 +10,9 @@ declare const IMask: any;
 
 initTelegram();
 
+// Глобальная переменная для часового пояса
+let masterTimezone = 'Asia/Almaty'; 
+
 // --- ICONS (SVG) ---
 const ICONS = {
     Pet: `<svg class="w-10 h-10 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5.172C10 3.782 8.48 2.5 6.5 2.5S3 3.782 3 5.172c0 1.533 1.127 2.8 2.5 3.226V11h2V8.398c1.373-.426 2.5-1.693 2.5-3.226zM21 5.172c0-1.39-1.52-2.672-3.5-2.672S14 3.782 14 5.172c0 1.533 1.127 2.8 2.5 3.226V11h2V8.398c1.373-.426 2.5-1.693 2.5-3.226zM9 13h6c.667 0 1.25.167 1.75.5.5.333 1.25.833 1.25 1.5S17 17 16 19s-2.5 2.5-4 2.5-3-1.5-4-2.5-2-2.5-2-4 .75-1.167 1.25-1.5C8.75 13.167 9.333 13 9 13z"/></svg>`,
@@ -236,6 +239,9 @@ async function loadProfile() {
 
             els.desc.value = data.profile.description || '';
             if (data.profile.avatar_url) setAvatar(data.profile.avatar_url);
+            
+            // Запоминаем таймзону (ВАЖНО ДЛЯ КОРРЕКТНОГО ВРЕМЕНИ)
+            if (data.profile.timezone) masterTimezone = data.profile.timezone;
         }
     } catch (e) { console.error(e); }
 }
@@ -765,7 +771,13 @@ function renderAppointmentsList(apps: any[]) {
 function createRecordCardHTML(record: any) {
     const isPending = record.status === 'pending';
     const dateObj = new Date(record.starts_at);
-    const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    
+    // ИСПОЛЬЗУЕМ masterTimezone
+    const timeStr = dateObj.toLocaleTimeString('ru-RU', { 
+        timeZone: masterTimezone, // <--- ВОТ ГЛАВНОЕ ИЗМЕНЕНИЕ
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
 
     // Styles
     const borderClass = isPending
