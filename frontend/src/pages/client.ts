@@ -10,7 +10,7 @@ initTelegram();
 
 // -- STATE --
 const urlParams = new URLSearchParams(window.location.search);
-const masterId = urlParams.get('start_param') || '579214945'; // Тестовый ID если нет параметра
+const masterId = urlParams.get('start_param') || '579214945'; // Тестовый ID
 
 let masterData: any = null;
 let services: any[] = [];
@@ -58,12 +58,10 @@ const els = {
 
 // -- INIT --
 async function init() {
-    // Phone Mask
     if (typeof IMask !== 'undefined' && els.inpPhone) {
         IMask(els.inpPhone, { mask: '+{7} (000) 000-00-00', lazy: false });
     }
 
-    // Auto-fill from Telegram
     if (Telegram.WebApp.initDataUnsafe?.user) {
         const u = Telegram.WebApp.initDataUnsafe.user;
         if (els.inpName) els.inpName.value = `${u.first_name} ${u.last_name || ''}`.trim();
@@ -85,7 +83,6 @@ async function loadMasterInfo() {
         
         if (masterData.description) {
             els.heroDesc.textContent = masterData.description;
-            // Expand logic
             if (els.heroDesc.scrollHeight > els.heroDesc.clientHeight) {
                 els.btnExpandDesc.classList.remove('hidden');
                 els.btnExpandDesc.onclick = () => {
@@ -98,13 +95,16 @@ async function loadMasterInfo() {
             els.heroDesc.textContent = 'Нет описания';
         }
 
-        // 2. Carousel Logic
+        // 2. Carousel Logic (Отображаем фото из массива)
         renderClientCarousel();
 
-        // 3. Status logic (Open/Closed)
-        checkOpenStatus(masterData.timezone || 'Asia/Almaty');
+        // 3. Status logic
+        if (masterData.timezone) {
+            checkOpenStatus(masterData.timezone);
+        }
 
     } catch (e) {
+        console.error(e);
         els.heroTitle.textContent = 'Мастер не найден';
         els.heroStatus.textContent = 'Ошибка';
     }
@@ -114,37 +114,47 @@ function renderClientCarousel() {
     if (!els.carouselTrack) return;
     els.carouselTrack.innerHTML = '';
     
-    // Собираем фото. Если есть массив photos - берем его.
-    // Если массива нет или он пуст, но есть старая avatar_url - берем её.
+    // Получаем массив фото. Если это JSON-строка (как в БД), парсим её.
     let photos: string[] = [];
     
-    if (masterData.photos && Array.isArray(masterData.photos) && masterData.photos.length > 0) {
-        photos = masterData.photos;
-    } else if (masterData.avatar_url) {
+    if (masterData.photos) {
+        if (Array.isArray(masterData.photos)) {
+            photos = masterData.photos;
+        } else if (typeof masterData.photos === 'string') {
+            try {
+                photos = JSON.parse(masterData.photos);
+            } catch (e) {
+                // Если не парсится, возможно это просто одна ссылка?
+                photos = [masterData.photos]; 
+            }
+        }
+    }
+    
+    // Фоллбэк на старую аватарку
+    if (photos.length === 0 && masterData.avatar_url) {
         photos = [masterData.avatar_url];
     }
 
-    // Если совсем ничего нет - заглушка
+    // Если совсем пусто
     if (photos.length === 0) {
         els.carouselTrack.innerHTML = `
-            <div class="flex-shrink-0 w-full h-full snap-center bg-[#182430] flex flex-col items-center justify-center text-gray-500">
-                <span class="material-symbols-rounded text-4xl mb-2 opacity-50">image_not_supported</span>
+            <div class="flex-shrink-0 w-full h-full snap-center bg-[#182430] flex flex-col items-center justify-center text-secondary/30">
+                <span class="material-symbols-rounded text-6xl mb-2">storefront</span>
             </div>`;
         return;
     }
 
-    // Рендерим слайды
+    // Рендер фото
     photos.forEach((url, index) => {
         const slide = document.createElement('div');
         slide.className = 'flex-shrink-0 w-full h-full snap-center';
-        slide.innerHTML = `<img src="${url}" alt="Slide ${index}" class="w-full h-full object-cover">`;
+        slide.innerHTML = `<img src="${url}" alt="Salon Photo ${index}" class="w-full h-full object-cover">`;
         els.carouselTrack.appendChild(slide);
     });
 
-    // Индикаторы (точки)
+    // Точки (индикаторы)
     if (els.carouselIndicators) {
         els.carouselIndicators.innerHTML = '';
-        // Если фото больше одного, показываем точки
         if (photos.length > 1) {
             photos.forEach((_, i) => {
                 const dot = document.createElement('div');
@@ -152,13 +162,10 @@ function renderClientCarousel() {
                 els.carouselIndicators.appendChild(dot);
             });
 
-            // Слушаем скролл для обновления активной точки
             els.carouselTrack.addEventListener('scroll', () => {
                 const scrollPos = els.carouselTrack.scrollLeft;
                 const width = els.carouselTrack.clientWidth;
                 const index = Math.round(scrollPos / width);
-                
-                // Обновляем классы точек
                 Array.from(els.carouselIndicators.children).forEach((dot, i) => {
                     dot.className = `h-1.5 rounded-full transition-all duration-300 ${i === index ? 'bg-[#3899fa] w-3' : 'bg-[#8eadcc]/30 w-1.5'}`;
                 });
@@ -172,8 +179,6 @@ function checkOpenStatus(timezone: string) {
         const now = new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour12: false });
         const [h, m] = now.split(':').map(Number);
         const currentMinutes = h * 60 + m;
-        
-        // Hardcoded check 09:00 - 21:00 (лучше брать из графика)
         const start = 9 * 60; 
         const end = 21 * 60;
 
@@ -188,12 +193,9 @@ function checkOpenStatus(timezone: string) {
             els.statusDot.className = "absolute bottom-1 right-1 w-5 h-5 bg-gray-500 border-4 border-bg rounded-full z-20";
             els.statusTextDot.className = "text-gray-500 text-[10px]";
         }
-    } catch (e) {
-        console.error(e);
-    }
+    } catch (e) { console.error(e); }
 }
 
-// -- LOAD SERVICES --
 async function loadServices() {
     try {
         services = await apiFetch(`/masters/${masterId}/services`);
@@ -225,18 +227,13 @@ async function loadServices() {
     }
 }
 
-// -- BOOKING FLOW --
-
 function openBooking(service: any) {
     selectedService = service;
     els.selectedServiceName.textContent = `${service.name} • ${service.price} ₸`;
-    
     views.home.classList.add('hidden');
     views.booking.classList.remove('hidden');
-    
     Telegram.WebApp.BackButton.show();
     Telegram.WebApp.BackButton.onClick(goBack);
-    
     initCalendar();
 }
 
@@ -246,16 +243,13 @@ function goBack() {
     views.home.classList.remove('hidden');
     Telegram.WebApp.BackButton.hide();
     Telegram.WebApp.MainButton.hide();
-    
     selectedDate = null;
     selectedSlot = null;
     els.slotsContainer.classList.add('hidden');
     els.bookingForm.classList.add('hidden');
 }
 
-// -- CALENDAR --
 let calDate = new Date();
-
 function initCalendar() {
     renderCalendar();
     els.btnPrevMonth.onclick = () => { calDate.setMonth(calDate.getMonth() - 1); renderCalendar(); };
@@ -265,18 +259,11 @@ function initCalendar() {
 function renderCalendar() {
     const year = calDate.getFullYear();
     const month = calDate.getMonth();
-    
     els.calMonth.textContent = new Date(year, month).toLocaleString('ru', { month: 'long', year: 'numeric' });
-    
-    const firstDay = new Date(year, month, 1).getDay() || 7; // 1=Mon, 7=Sun
+    const firstDay = new Date(year, month, 1).getDay() || 7;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
     els.calGrid.innerHTML = '';
-    
-    // Empty cells
-    for (let i = 1; i < firstDay; i++) {
-        els.calGrid.appendChild(document.createElement('div'));
-    }
+    for (let i = 1; i < firstDay; i++) els.calGrid.appendChild(document.createElement('div'));
     
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -291,17 +278,14 @@ function renderCalendar() {
         const cell = document.createElement('div');
         cell.className = `day-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isPast ? 'disabled' : ''}`;
         cell.textContent = d.toString();
-        
         if (!isPast) {
             cell.onclick = () => {
-                // Deselect prev
                 document.querySelector('.day-cell.selected')?.classList.remove('selected');
                 cell.classList.add('selected');
                 selectedDate = dateStr;
                 loadSlots(dateStr);
             };
         }
-        
         els.calGrid.appendChild(cell);
     }
 }
@@ -315,12 +299,10 @@ async function loadSlots(date: string) {
     try {
         const slots = await apiFetch(`/masters/${masterId}/availability?date=${date}`);
         els.slotsGrid.innerHTML = '';
-        
         if (slots.length === 0) {
             els.slotsGrid.innerHTML = '<div class="col-span-4 text-center text-secondary/50 text-sm py-2">Нет мест</div>';
             return;
         }
-
         slots.forEach((isoTime: string) => {
             const time = new Date(isoTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: masterData.timezone });
             const btn = document.createElement('button');
@@ -341,11 +323,7 @@ async function loadSlots(date: string) {
 
 function showBookingForm() {
     els.bookingForm.classList.remove('hidden');
-    // Scroll to form
-    setTimeout(() => {
-        els.bookingForm.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-    
+    setTimeout(() => els.bookingForm.scrollIntoView({ behavior: 'smooth' }), 100);
     Telegram.WebApp.MainButton.setText(`ЗАПИСАТЬСЯ • ${selectedService.price} ₸`);
     Telegram.WebApp.MainButton.show();
 }
@@ -362,19 +340,22 @@ async function onMainButtonClick() {
     Telegram.WebApp.MainButton.showProgress();
     
     try {
+        // Prepare Payload - ВАЖНО: имена полей соответствуют новой схеме
+        const payload = {
+            master_telegram_id: parseInt(masterId),
+            service_id: selectedService.id,
+            starts_at: selectedSlot,
+            client_name: name,
+            client_phone: phone,
+            client_username: Telegram.WebApp.initDataUnsafe?.user?.username || null, // Отправляем null если нет
+            pet_name: els.inpPetName.value.trim(),
+            pet_breed: els.inpPetBreed.value.trim() || null,
+            comment: els.inpComment.value.trim() || null
+        };
+
         await apiFetch('/appointments', {
             method: 'POST',
-            body: JSON.stringify({
-                master_telegram_id: parseInt(masterId),
-                service_id: selectedService.id,
-                starts_at: selectedSlot,
-                client_name: name,
-                client_phone: phone,
-                client_username: Telegram.WebApp.initDataUnsafe?.user?.username,
-                pet_name: els.inpPetName.value.trim(),
-                pet_breed: els.inpPetBreed.value.trim(),
-                comment: els.inpComment.value.trim()
-            })
+            body: JSON.stringify(payload)
         });
         
         views.booking.classList.add('hidden');
