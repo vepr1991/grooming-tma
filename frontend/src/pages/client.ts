@@ -113,6 +113,9 @@ function renderClientCarousel() {
     
     let photos: string[] = [];
     
+    // Safety check: if masterData failed to load
+    if (!masterData) return;
+
     if (masterData.photos) {
         if (Array.isArray(masterData.photos)) {
             photos = masterData.photos;
@@ -131,7 +134,7 @@ function renderClientCarousel() {
 
     if (photos.length === 0) {
         els.carouselTrack.innerHTML = `
-            <div class="flex-shrink-0 w-full h-full snap-center bg-[#182430] flex flex-col items-center justify-center text-secondary/30">
+            <div class="flex-shrink-0 w-full h-full snap-center bg-surface flex flex-col items-center justify-center text-secondary/30">
                 <span class="material-symbols-rounded text-6xl mb-2">storefront</span>
             </div>`;
         return;
@@ -149,7 +152,7 @@ function renderClientCarousel() {
         if (photos.length > 1) {
             photos.forEach((_, i) => {
                 const dot = document.createElement('div');
-                dot.className = `h-1.5 rounded-full transition-all duration-300 ${i === 0 ? 'bg-[#3899fa] w-3' : 'bg-[#8eadcc]/30 w-1.5'}`;
+                dot.className = `h-1.5 rounded-full transition-all duration-300 ${i === 0 ? 'bg-primary w-3' : 'bg-secondary/30 w-1.5'}`;
                 els.carouselIndicators.appendChild(dot);
             });
 
@@ -158,7 +161,7 @@ function renderClientCarousel() {
                 const width = els.carouselTrack.clientWidth;
                 const index = Math.round(scrollPos / width);
                 Array.from(els.carouselIndicators.children).forEach((dot, i) => {
-                    dot.className = `h-1.5 rounded-full transition-all duration-300 ${i === index ? 'bg-[#3899fa] w-3' : 'bg-[#8eadcc]/30 w-1.5'}`;
+                    dot.className = `h-1.5 rounded-full transition-all duration-300 ${i === index ? 'bg-primary w-3' : 'bg-secondary/30 w-1.5'}`;
                 });
             });
         }
@@ -218,9 +221,7 @@ async function loadServices() {
     }
 }
 
-// --- BOOKING FLOW ---
-
-let calDate = new Date(); // Глобальная переменная для навигации календаря
+let calDate = new Date();
 
 function openBooking(service: any) {
     selectedService = service;
@@ -232,8 +233,7 @@ function openBooking(service: any) {
     Telegram.WebApp.BackButton.show();
     Telegram.WebApp.BackButton.onClick(goBack);
     
-    // --- FIX: АВТО-ВЫБОР СЕГОДНЯ ---
-    calDate = new Date(); // Сброс месяца на текущий
+    calDate = new Date(); 
     
     const today = new Date();
     const y = today.getFullYear();
@@ -243,8 +243,13 @@ function openBooking(service: any) {
     
     initCalendar();
     
-    // Сразу грузим слоты для "сегодня"
-    loadSlots(selectedDate);
+    // Safe load: check if masterData exists
+    if (masterData && masterData.timezone) {
+        loadSlots(selectedDate);
+    } else {
+        // Fallback or retry loading master info if needed, but usually it's loaded
+        loadSlots(selectedDate);
+    }
 }
 
 (window as any).goBack = goBack;
@@ -321,8 +326,10 @@ async function loadSlots(date: string) {
             return;
         }
 
+        const tz = (masterData && masterData.timezone) ? masterData.timezone : 'Asia/Almaty';
+
         slots.forEach((isoTime: string) => {
-            const time = new Date(isoTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: masterData.timezone });
+            const time = new Date(isoTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: tz });
             const btn = document.createElement('button');
             btn.className = 'slot-btn';
             btn.textContent = time;
@@ -385,5 +392,4 @@ async function onMainButtonClick() {
     }
 }
 
-// Start
 init();
