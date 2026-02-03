@@ -8,7 +8,7 @@ class MasterProfileUpdate(BaseModel):
     phone: Optional[str] = None
     description: Optional[str] = None
     avatar_url: Optional[str] = None
-    photos: Optional[List[str]] = None  # <--- Добавили массив фото
+    photos: Optional[List[str]] = None
     timezone: Optional[str] = None
 
 # --- Услуги ---
@@ -20,6 +20,14 @@ class ServiceBase(BaseModel):
 
 class ServiceCreate(ServiceBase):
     pass
+
+# --- НОВОЕ: Схема для обновления услуги ---
+class ServiceUpdate(BaseModel):
+    name: Optional[str] = None
+    price: Optional[float] = None
+    duration_min: Optional[int] = None
+    description: Optional[str] = None
+# ----------------------------------------
 
 class ServiceResponse(ServiceBase):
     id: int
