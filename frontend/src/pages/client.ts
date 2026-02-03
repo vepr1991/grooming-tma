@@ -13,10 +13,14 @@ const urlParams = new URLSearchParams(window.location.search);
 const masterId = urlParams.get('start_param') || '579214945';
 
 let masterData: any = null;
-let services: any[] = [];
+let services: any[] = []; // Используется для хранения загруженных услуг
 let selectedService: any = null;
 let selectedDate: string | null = null;
 let selectedSlot: string | null = null;
+
+// FIX: Перенесли объявление глобальных переменных наверх
+let calDate = new Date();
+let currentActiveBtn: HTMLElement | null = null;
 
 // -- DOM ELEMENTS --
 const views = {
@@ -191,7 +195,7 @@ function checkOpenStatus(timezone: string) {
     } catch (e) { console.error(e); }
 }
 
-// === ЛОГИКА ВЫБОРА УСЛУГИ (КАК В REACT-ПРИМЕРЕ) ===
+// === ЛОГИКА ВЫБОРА УСЛУГИ ===
 async function loadServices() {
     try {
         services = await apiFetch(`/masters/${masterId}/services`);
@@ -204,14 +208,11 @@ async function loadServices() {
 
         // Рендерим каждую услугу
         services.forEach(srv => {
-            // Элемент списка (кнопка)
             const btn = document.createElement('button');
             // Базовые стили + transition
             btn.className = `group w-full text-left bg-surface hover:bg-white/5 active:scale-[0.99] transition-all duration-300 p-4 rounded-xl shadow-sm border border-border flex flex-col gap-2`;
 
-            // Иконка услуги (заглушка или из данных, если есть)
-            // Генерируем цвет для иконки (просто для красоты, или фиксированный primary)
-            const iconColor = "var(--c-primary)";
+            // FIX: Убрали неиспользуемую переменную iconColor
 
             btn.innerHTML = `
                 <div class="flex items-center justify-between gap-4 w-full">
@@ -251,9 +252,6 @@ async function loadServices() {
     }
 }
 
-// Храним ссылку на текущую активную кнопку, чтобы сбрасывать стили
-let currentActiveBtn: HTMLElement | null = null;
-
 function handleServiceClick(service: any, btnElement: HTMLElement) {
     const isSame = selectedService?.id === service.id;
 
@@ -278,7 +276,7 @@ function handleServiceClick(service: any, btnElement: HTMLElement) {
         Telegram.WebApp.MainButton.setText(`ВЫБРАТЬ • ${service.price} ₸`);
         Telegram.WebApp.MainButton.show();
         // При клике на MainButton переходим к календарю
-        Telegram.WebApp.MainButton.onClick(() => openBooking(service));
+        Telegram.WebApp.MainButton.onClick(() => openBooking());
     }
 }
 
@@ -321,8 +319,8 @@ function updateServiceItemVisuals(btn: HTMLElement, isSelected: boolean) {
     }
 }
 
-// Переход к календарю (вызывается кнопкой MainButton)
-function openBooking(service: any) {
+// FIX: Убрали неиспользуемый параметр service
+function openBooking() {
     // Отвязываем обработчик MainButton от выбора услуги
     Telegram.WebApp.MainButton.offClick(onMainButtonClick);
 
@@ -346,8 +344,6 @@ function openBooking(service: any) {
     else loadSlots(selectedDate);
 }
 
-// ... (Далее код календаря и слотов без изменений) ...
-
 (window as any).goBack = goBack;
 function goBack() {
     views.booking.classList.add('hidden');
@@ -358,7 +354,7 @@ function goBack() {
     if (selectedService) {
         Telegram.WebApp.MainButton.setText(`ВЫБРАТЬ • ${selectedService.price} ₸`);
         Telegram.WebApp.MainButton.show();
-        Telegram.WebApp.MainButton.onClick(() => openBooking(selectedService));
+        Telegram.WebApp.MainButton.onClick(() => openBooking());
     } else {
         Telegram.WebApp.MainButton.hide();
     }
@@ -454,22 +450,20 @@ function showBookingForm() {
     els.bookingForm.classList.remove('hidden');
     setTimeout(() => els.bookingForm.scrollIntoView({ behavior: 'smooth' }), 100);
 
-    // Переназначаем обработчик на финальную запись
-    Telegram.WebApp.MainButton.offClick(openBooking); // Убираем старый (если был)
-    Telegram.WebApp.MainButton.onClick(onMainButtonClick); // Ставим новый
+    Telegram.WebApp.MainButton.offClick(openBooking);
+    Telegram.WebApp.MainButton.onClick(onMainButtonClick);
 
     Telegram.WebApp.MainButton.setText(`ЗАПИСАТЬСЯ • ${selectedService.price} ₸`);
     Telegram.WebApp.MainButton.show();
 }
 
 async function onMainButtonClick() {
-    // Если мы на экране выбора услуг (selectedSlot еще нет) -> переходим в календарь
+    // Если слота нет, но есть услуга - идем в календарь
     if (!selectedSlot && selectedService) {
-        openBooking(selectedService);
+        openBooking();
         return;
     }
 
-    // Если мы в календаре и слот выбран -> записываемся
     const name = els.inpName.value.trim();
     const phone = els.inpPhone.value.trim();
 
@@ -517,4 +511,5 @@ async function onMainButtonClick() {
     }
 }
 
+// Start
 init();
