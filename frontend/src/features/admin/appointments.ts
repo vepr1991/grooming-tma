@@ -2,7 +2,6 @@ import { $, setText } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { showToast } from '../../ui/toast';
 import { showConfirm } from '../../ui/modal';
-import { getAppointmentSkeleton } from '../../ui/skeletons'; // NEW
 import { ICONS } from '../../ui/icons';
 import { Appointment } from '../../types';
 import { Telegram } from '../../core/tg';
@@ -25,9 +24,7 @@ const WEEK_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 export async function loadAppointments() {
     renderTabs();
     const list = $('appointments-list');
-
-    // NEW: Скелетон
-    if(list) list.innerHTML = getAppointmentSkeleton(3);
+    if(list) list.innerHTML = '<div class="text-center text-text-secondary py-8">Загрузка...</div>';
 
     try {
         appointmentsCache = await apiFetch<Appointment[]>('/me/appointments');
@@ -37,10 +34,6 @@ export async function loadAppointments() {
         if(list) list.innerHTML = '<div class="text-center text-error">Ошибка сети</div>';
     }
 }
-
-// ... ОСТАЛЬНОЙ КОД ФУНКЦИЙ ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ ...
-// (Чтобы сэкономить место, я не буду дублировать функции renderTabs, renderCalendar, renderList, createCard и updateStatus)
-// (Они остаются такими же, как в предыдущем шаге "Refactor", просто не забудьте их оставить!)
 
 function renderTabs() {
     const container = $('appointment-tabs');
@@ -60,12 +53,14 @@ function renderTabs() {
 function changeMonth(offset: number) {
     viewDate.setMonth(viewDate.getMonth() + offset);
     renderCalendar();
+    renderList(); // FIX: Обновляем список при смене месяца
 }
 
 function renderCalendar() {
     const container = $('calendar-container');
     if (!container) return;
 
+    // Точки только для активных записей
     const busyDates = new Set(appointmentsCache
         .filter(a => ['pending', 'confirmed'].includes(a.status))
         .map(a => a.starts_at.split('T')[0]));
@@ -146,12 +141,28 @@ function renderList() {
     if (!list) return;
     list.innerHTML = '';
 
-    const y = selectedDate.getFullYear();
-    const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    const d = String(selectedDate.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${d}`;
+    let filtered: Appointment[] = [];
 
-    const filtered = appointmentsCache.filter(a => a.starts_at.startsWith(dateStr) && a.status === activeTab);
+    if (activeTab === 'completed' || activeTab === 'cancelled') {
+        // FIX: Показываем записи за ВЕСЬ МЕСЯЦ (viewDate)
+        const y = viewDate.getFullYear();
+        const m = String(viewDate.getMonth() + 1).padStart(2, '0');
+        const monthPrefix = `${y}-${m}`;
+        filtered = appointmentsCache.filter(a => a.starts_at.startsWith(monthPrefix) && a.status === activeTab);
+
+        // Сортировка: Сначала новые (история)
+        filtered.sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
+    } else {
+        // Показываем записи за ВЫБРАННЫЙ ДЕНЬ (selectedDate)
+        const y = selectedDate.getFullYear();
+        const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const d = String(selectedDate.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+        filtered = appointmentsCache.filter(a => a.starts_at.startsWith(dateStr) && a.status === activeTab);
+
+        // Сортировка: Сначала ранние (расписание)
+        filtered.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+    }
 
     setText('tab-label', TABS.find(t => t.id === activeTab)?.label || '');
     setText('tab-count', filtered.length.toString());
@@ -166,7 +177,18 @@ function renderList() {
 
 function createCard(a: Appointment): HTMLElement {
     const el = document.createElement('div');
-    const time = new Date(a.starts_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const dateObj = new Date(a.starts_at);
+
+    // FIX: Если список за месяц, добавляем дату (ДД.ММ ЧЧ:ММ)
+    let timeDisplay = '';
+    if (activeTab === 'completed' || activeTab === 'cancelled') {
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const time = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        timeDisplay = `${day}.${month} ${time}`;
+    } else {
+        timeDisplay = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    }
 
     const configs: any = {
         pending: { label: 'ОЖИДАЕТ', color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-l-orange-500' },
@@ -182,7 +204,7 @@ function createCard(a: Appointment): HTMLElement {
       <div class="flex justify-between items-center">
         <div class="flex items-center gap-1.5">
           <span class="w-1.5 h-1.5 rounded-full ${a.status === 'pending' ? 'bg-orange-500 animate-pulse' : c.bg.replace('/10','')}"></span>
-          <span class="text-white font-bold text-xs">${time}</span>
+          <span class="text-white font-bold text-xs">${timeDisplay}</span>
         </div>
         <span class="text-[10px] font-bold px-2 py-0.5 rounded ${c.bg} ${c.color}">${c.label}</span>
       </div>
