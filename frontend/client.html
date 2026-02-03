@@ -52,7 +52,6 @@
       }
     </script>
     <link rel="stylesheet" href="./src/style.css">
-
     <style>
       body { background-color: var(--c-bg); color: var(--c-text-main); -webkit-tap-highlight-color: transparent; }
       .text-fixed-white { color: #ffffff !important; }
@@ -72,7 +71,6 @@
         </header>
 
         <div class="flex flex-col items-center pt-20 pb-6 px-6 text-center w-full">
-
             <div class="relative w-full max-w-[320px] mx-auto mb-4">
                 <div id="client-carousel-track" class="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide rounded-[32px] border-4 border-surface shadow-2xl aspect-square bg-bg">
                     <div class="flex-shrink-0 w-full h-full snap-center bg-surface flex flex-col items-center justify-center text-secondary/30">
@@ -173,11 +171,23 @@
         <div class="w-24 h-24 bg-success/20 rounded-full flex items-center justify-center mb-6 ring-4 ring-success/10">
             <span class="material-symbols-rounded text-6xl text-success">check</span>
         </div>
-        <h2 class="text-3xl font-extrabold text-white mb-2">Вы записаны!</h2>
-        <div class="text-secondary mb-8 max-w-xs space-y-1">
-            <p>Ждем вас <span id="success-date" class="text-white font-bold"></span></p>
-            <p>Услуга: <span id="success-service" class="text-primary font-bold"></span></p>
+        <h2 class="text-3xl font-extrabold text-white mb-3">Заявка создана!</h2>
+
+        <div class="text-secondary mb-8 max-w-xs space-y-4">
+            <p class="text-sm leading-relaxed">Мы отправим уведомление, как только мастер подтвердит запись!</p>
+
+            <div class="bg-surface/50 border border-border/50 rounded-xl p-4 space-y-1.5 shadow-sm text-left">
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-secondary">Дата:</span>
+                    <span id="success-date" class="text-white font-bold"></span>
+                </div>
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-secondary">Услуга:</span>
+                    <span id="success-service" class="text-primary font-bold"></span>
+                </div>
+            </div>
         </div>
+
         <button onclick="Telegram.WebApp.close()" class="w-full max-w-sm bg-surface border border-border text-white font-bold py-4 rounded-xl active:scale-95 transition-all hover:bg-surface/80">
             Закрыть
         </button>
