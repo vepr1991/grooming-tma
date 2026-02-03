@@ -7,7 +7,6 @@ import uuid
 from app.auth import validate_telegram_data
 from app.db import supabase
 from app.utils import send_telegram_message
-# Добавляем импорт ServiceUpdate
 from app.schemas.master import (
     MasterProfileUpdate, ServiceCreate, ServiceUpdate, WorkingHourItem
 )
@@ -88,20 +87,17 @@ async def create_service(srv: ServiceCreate, user=Depends(validate_telegram_data
     return res.data
 
 
-# --- НОВОЕ: Эндпоинт для редактирования услуги ---
 @router.patch("/services/{service_id}")
 async def update_service(
         service_id: int,
         srv: ServiceUpdate,
         user=Depends(validate_telegram_data)
 ):
-    # Убираем пустые поля (None), чтобы не затереть существующие данные
     update_data = srv.model_dump(exclude_unset=True)
 
     if not update_data:
         raise HTTPException(status_code=400, detail="No data provided")
 
-    # Обновляем, проверяя, что услуга принадлежит текущему мастеру
     res = supabase.table("services").update(update_data) \
         .eq("id", service_id) \
         .eq("master_telegram_id", user['id']) \
@@ -113,8 +109,6 @@ async def update_service(
     return res.data[0]
 
 
-# -------------------------------------------------
-
 @router.delete("/services/{sid}")
 async def delete_service(sid: int, user=Depends(validate_telegram_data)):
     res = supabase.table("services") \
@@ -125,7 +119,7 @@ async def delete_service(sid: int, user=Depends(validate_telegram_data)):
     return {"status": "archived"}
 
 
-# --- Working Hours & Appointments (без изменений) ---
+# --- Working Hours ---
 
 @router.get("/working-hours")
 async def get_hours(user=Depends(validate_telegram_data)):
@@ -145,6 +139,8 @@ async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram
         supabase.table("working_hours").insert(data_list).execute()
     return {"status": "updated"}
 
+
+# --- Appointments ---
 
 @router.get("/appointments")
 async def get_my_appointments(user=Depends(validate_telegram_data)):
@@ -192,6 +188,15 @@ async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
         except Exception as e:
             print(f"Notify error: {e}")
     return res.data
+
+
+# --- НОВОЕ: Завершение записи ---
+@router.post("/appointments/{aid}/complete")
+async def complete_appointment(aid: int, user=Depends(validate_telegram_data)):
+    res = supabase.table("appointments").update({"status": "completed"}) \
+        .eq("id", aid).eq("master_telegram_id", user['id']).execute()
+    return res.data
+# --------------------------------
 
 
 @router.post("/appointments/{aid}/cancel")
