@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Grooming App Loading...</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { background-color: #000; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+    <p>Загрузка...</p>
+
+    <script>
+        // 2. Инициализируем
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        // 3. Смотрим на параметр запуска (start_param)
+        // Он берется из ссылки ?startapp=...
+        const startParam = tg.initDataUnsafe.start_param;
+
+        if (startParam) {
+            // === КЕЙС 1: ЕСТЬ ПАРАМЕТР ===
+            // Значит, это КЛИЕНТ, который перешел по чьей-то ссылке.
+            // Перекидываем его на клиентскую часть и передаем этот параметр дальше.
+            // Например: client.html?start_param=579214945
+            console.log('Client detected, master ID:', startParam);
+            window.location.href = "client.html?start_param=" + startParam;
+        } else {
+            // === КЕЙС 2: НЕТ ПАРАМЕТРА ===
+            // Значит, человек открыл приложение просто через кнопку "Меню" или команду.
+            // Считаем, что это МАСТЕР, который хочет зайти в свою админку.
+            console.log('Master/Admin detected');
+            window.location.href = "admin.html";
+        }
+    </script>
+</body>
+</html>
