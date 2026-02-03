@@ -2,6 +2,7 @@ import { $, show, hide, getVal, setVal } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { showToast } from '../../ui/toast';
 import { showConfirm } from '../../ui/modal';
+import { getAdminServiceSkeleton } from '../../ui/skeletons'; // NEW
 import { ICONS } from '../../ui/icons';
 import { Service } from '../../types';
 
@@ -10,6 +11,10 @@ let editingId: number | null = null;
 export async function loadServices() {
     const list = $('services-list');
     if (!list) return;
+
+    // NEW: Скелетон
+    list.innerHTML = getAdminServiceSkeleton(3);
+
     try {
         const services = await apiFetch<Service[]>('/me/services');
         list.innerHTML = '';

@@ -2,13 +2,13 @@ import { $, setText } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { showToast } from '../../ui/toast';
 import { showConfirm } from '../../ui/modal';
+import { getAppointmentSkeleton } from '../../ui/skeletons'; // NEW
 import { ICONS } from '../../ui/icons';
 import { Appointment } from '../../types';
 import { Telegram } from '../../core/tg';
 
 let appointmentsCache: Appointment[] = [];
 let selectedDate = new Date();
-// Используем локальную переменную viewDate для навигации по календарю
 let viewDate = new Date();
 let activeTab: Appointment['status'] = 'pending';
 
@@ -25,7 +25,9 @@ const WEEK_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 export async function loadAppointments() {
     renderTabs();
     const list = $('appointments-list');
-    if(list) list.innerHTML = '<div class="text-center text-text-secondary py-8">Загрузка...</div>';
+
+    // NEW: Скелетон
+    if(list) list.innerHTML = getAppointmentSkeleton(3);
 
     try {
         appointmentsCache = await apiFetch<Appointment[]>('/me/appointments');
@@ -35,6 +37,10 @@ export async function loadAppointments() {
         if(list) list.innerHTML = '<div class="text-center text-error">Ошибка сети</div>';
     }
 }
+
+// ... ОСТАЛЬНОЙ КОД ФУНКЦИЙ ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ ...
+// (Чтобы сэкономить место, я не буду дублировать функции renderTabs, renderCalendar, renderList, createCard и updateStatus)
+// (Они остаются такими же, как в предыдущем шаге "Refactor", просто не забудьте их оставить!)
 
 function renderTabs() {
     const container = $('appointment-tabs');
@@ -60,7 +66,6 @@ function renderCalendar() {
     const container = $('calendar-container');
     if (!container) return;
 
-    // FIX: Используем busyDates для отрисовки точек
     const busyDates = new Set(appointmentsCache
         .filter(a => ['pending', 'confirmed'].includes(a.status))
         .map(a => a.starts_at.split('T')[0]));
@@ -68,7 +73,6 @@ function renderCalendar() {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
 
-    // FIX: Используем daysInMonth
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     let firstDay = new Date(year, month, 1).getDay() - 1;
     if (firstDay === -1) firstDay = 6;
@@ -99,7 +103,6 @@ function renderCalendar() {
         const currentDate = new Date(year, month, i);
         const currentStr = currentDate.toDateString();
 
-        // Формируем ISO дату "YYYY-MM-DD" локально
         const y = currentDate.getFullYear();
         const m = String(currentDate.getMonth() + 1).padStart(2, '0');
         const d = String(currentDate.getDate()).padStart(2, '0');
@@ -123,8 +126,10 @@ function renderCalendar() {
     html += `</div></div>`;
     container.innerHTML = html;
 
-    $('cal-prev')!.onclick = () => changeMonth(-1);
-    $('cal-next')!.onclick = () => changeMonth(1);
+    const btnPrev = document.getElementById('cal-prev');
+    const btnNext = document.getElementById('cal-next');
+    if (btnPrev) btnPrev.onclick = () => changeMonth(-1);
+    if (btnNext) btnNext.onclick = () => changeMonth(1);
 
     container.querySelectorAll('.day-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -141,13 +146,11 @@ function renderList() {
     if (!list) return;
     list.innerHTML = '';
 
-    // Формируем строку YYYY-MM-DD с учетом локального времени (важно, чтобы не сдвигалось на UTC)
     const y = selectedDate.getFullYear();
     const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const d = String(selectedDate.getDate()).padStart(2, '0');
     const dateStr = `${y}-${m}-${d}`;
 
-    // Фильтруем записи: дата должна начинаться с dateStr (ISO формат) И статус должен совпадать
     const filtered = appointmentsCache.filter(a => a.starts_at.startsWith(dateStr) && a.status === activeTab);
 
     setText('tab-label', TABS.find(t => t.id === activeTab)?.label || '');
@@ -201,10 +204,13 @@ function createCard(a: Appointment): HTMLElement {
       <div class="flex flex-col gap-2 actions-area"></div>
     `;
 
-    el.querySelector('.btn-copy-phone')!.addEventListener('click', (e) => {
-        e.stopPropagation();
-        navigator.clipboard.writeText(a.client_phone).then(() => showToast('Скопировано'));
-    });
+    const copyBtn = el.querySelector('.btn-copy-phone') as HTMLElement;
+    if (copyBtn) {
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(a.client_phone).then(() => showToast('Скопировано'));
+        });
+    }
 
     const actions = el.querySelector('.actions-area')!;
     const btnBox = document.createElement('div');
