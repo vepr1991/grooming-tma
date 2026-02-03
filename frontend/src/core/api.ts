@@ -1,35 +1,25 @@
 import { Telegram } from './tg';
 
-// Считываем переменную окружения, которую мы зададим в Render
 const ENV_API_URL = import.meta.env.VITE_API_URL;
-
-// Логика выбора базового URL:
-// 1. Если есть VITE_API_URL (на проде), используем его. Удаляем слэш в конце, если он есть.
-// 2. Если нет (локально), используем '/api', чтобы срабатывал прокси из vite.config.ts.
-// ВАЖНО: Добавили export, чтобы использовать эту переменную в других файлах (admin.ts)
 export const BASE_URL = ENV_API_URL ? ENV_API_URL.replace(/\/$/, '') : '/api';
 
-export async function apiFetch(endpoint: string, options: RequestInit = {}) {
-  const headers = {
-    'Content-Type': 'application/json',
-    // Передаем initData для валидации на бэкенде
-    'X-Tg-Init-Data': Telegram.WebApp.initData,
-    ...(options.headers || {}),
-  };
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const headers = {
+        'Content-Type': 'application/json',
+        'X-Tg-Init-Data': Telegram.WebApp.initData || '',
+        ...(options.headers || {}),
+    };
 
-  // endpoint должен начинаться с /, например /masters
-  // Склеиваем базовый URL и путь
-  const url = `${BASE_URL}${endpoint}`;
+    try {
+        const response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(err.detail || `Error ${response.status}`);
-  }
-
-  return response.json();
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: `Error ${response.status}` }));
+            throw new Error(err.detail || 'Network error');
+        }
+        return response.json();
+    } catch (e) {
+        console.error(`API Error [${endpoint}]:`, e);
+        throw e;
+    }
 }
