@@ -1,6 +1,5 @@
 /**
  * (c) 2026 Vladimir Kovalenko
- * Refactored Entry Point
  */
 import { initTelegram, Telegram } from '../core/tg';
 import { $ } from '../core/dom';
