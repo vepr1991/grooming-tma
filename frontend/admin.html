@@ -4,27 +4,27 @@
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
     <title>Профиль мастера</title>
-    
+
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/imask"></script>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    
+
     <script>
       (function() {
         const tg = window.Telegram?.WebApp;
-        const isDark = (tg && tg.colorScheme === 'dark') || 
+        const isDark = (tg && tg.colorScheme === 'dark') ||
                        (!tg && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        
+
         if (isDark) {
           document.documentElement.classList.add('dark');
         } else {
           document.documentElement.classList.remove('dark');
         }
-        
-        if (tg) { 
-            tg.ready(); 
+
+        if (tg) {
+            tg.ready();
             try { tg.expand(); } catch(e){}
-            const bg = isDark ? '#101a23' : '#f3f4f6'; 
+            const bg = isDark ? '#101a23' : '#f3f4f6';
             try { tg.setHeaderColor(bg); tg.setBackgroundColor(bg); } catch(e){}
         }
       })();
@@ -34,7 +34,7 @@
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    
+
     <script id="tailwind-config">
       tailwind.config = {
         darkMode: "class",
@@ -48,7 +48,7 @@
               "text-secondary": "var(--c-text-sec)",
               "success": "var(--c-success)",
               "error": "var(--c-error)",
-              "white": "var(--c-text-main)" 
+              "white": "var(--c-text-main)"
             },
             fontFamily: {
               "display": ["Plus Jakarta Sans", "sans-serif"]
@@ -58,8 +58,8 @@
         },
       }
     </script>
-    <link rel="stylesheet" href="./src/style.css"> 
-    
+    <link rel="stylesheet" href="./src/style.css">
+
     <style>
       body { min-height: 100dvh; background-color: var(--c-bg); color: var(--c-text-main); }
       .tab-btn { border-bottom: 3px solid transparent; color: var(--c-text-sec); }
@@ -178,12 +178,12 @@
                <textarea id="new-srv-desc" rows="2" placeholder="Краткое описание" class="bg-background-dark border border-border-dark rounded-lg p-3 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm font-medium resize-none"></textarea>
                <div class="flex gap-2">
                    <div class="relative flex-1">
-                       <input type="number" id="new-srv-price" placeholder="Цена" class="w-full bg-background-dark border border-border-dark rounded-lg p-3 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm font-medium">
-                       <span class="absolute right-3 top-3 text-text-secondary/50 text-xs font-bold">₸</span>
+                       <input type="number" id="new-srv-price" placeholder="Цена" class="w-full bg-background-dark border border-border-dark rounded-lg p-3 pr-8 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm font-medium">
+                       <span class="absolute right-3 top-3 text-text-secondary/50 text-xs font-bold pointer-events-none">₸</span>
                    </div>
                    <div class="relative flex-1">
-                       <input type="number" id="new-srv-dur" placeholder="Мин" value="60" class="w-full bg-background-dark border border-border-dark rounded-lg p-3 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm font-medium">
-                       <span class="absolute right-3 top-3 text-text-secondary/50 text-xs font-bold">мин</span>
+                       <input type="number" id="new-srv-dur" placeholder="Мин" value="60" class="w-full bg-background-dark border border-border-dark rounded-lg p-3 pr-10 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm font-medium">
+                       <span class="absolute right-3 top-3 text-text-secondary/50 text-xs font-bold pointer-events-none">мин</span>
                    </div>
                </div>
                <div class="flex gap-2 pt-2">
@@ -208,7 +208,7 @@
         <div id="tab-appointments" class="tab-content pb-24">
             <div id="calendar-container" class="sticky top-0 z-30 bg-background-dark border-b border-border-dark shadow-xl shadow-black/5"></div>
             <div id="appointments-list" class="flex flex-col gap-3 p-4"></div>
-            
+
             <div class="fixed bottom-6 right-6 z-40">
                 <button onclick="Telegram.WebApp.showAlert('Ручное добавление скоро будет')" class="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-fixed-white shadow-xl shadow-primary/40 hover:bg-primary/90 active:scale-95 transition-all duration-300">
                     <span class="material-symbols-outlined text-3xl">add</span>

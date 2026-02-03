@@ -12,15 +12,16 @@ let masterTimezone = 'Asia/Almaty';
 
 // --- FIX: Исправлены цвета иконок для светлой темы ---
 const ICONS = {
-    // Убрали opacity-30, чтобы было лучше видно
+    // Убрали opacity-30, чтобы было лучше видно на светлом фоне
     Pet: `<svg class="w-10 h-10 text-text-secondary/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5.172C10 3.782 8.48 2.5 6.5 2.5S3 3.782 3 5.172c0 1.533 1.127 2.8 2.5 3.226V11h2V8.398c1.373-.426 2.5-1.693 2.5-3.226zM21 5.172c0-1.39-1.52-2.672-3.5-2.672S14 3.782 14 5.172c0 1.533 1.127 2.8 2.5 3.226V11h2V8.398c1.373-.426 2.5-1.693 2.5-3.226zM9 13h6c.667 0 1.25.167 1.75.5.5.333 1.25.833 1.25 1.5S17 17 16 19s-2.5 2.5-4 2.5-3-1.5-4-2.5-2-2.5-2-4 .75-1.167 1.25-1.5C8.75 13.167 9.333 13 9 13z"/></svg>`,
-    
+
     Phone: `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
-    
+
     // Telegram теперь синий, а не белый
     Telegram: `<svg class="w-4 h-4 text-[#29b6f6]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.48-1.02-2.38-1.61-1.04-.69-.37-1.07.22-1.68.15-.16 2.74-2.51 2.79-2.72.01-.03.01-.12-.05-.17-.05-.05-.14-.03-.21-.02-.09.02-1.54.98-4.35 2.88-.41.28-.78.42-1.11.41-.36 0-1.05-.2-1.57-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.77-1.15 3.35-1.35 3.73-1.35.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .29z"/></svg>`,
-    
-    WhatsApp: `<svg class="w-4 h-4 text-green-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.32a8.197 8.197 0 0 1-1.26-4.38c.04-4.54 3.74-8.23 8.25-8.23m4.53 11.38c-.19-.1-.64-.26-1.33-.62-.17-.1-.28-.15-.38.04s-.42.53-.51.64c-.1.11-.19.12-.38.03-.19-.1-.82-.3-1.55-.96-.58-.52-1-.1.17-1.12.35-.11-.16-.06-.29-.06-.4s-.37-.15-.56-.37c-.19-.21-.73-.73-.73-1.77s.75-1.63.98-1.87c.23-.23.49-.29.66-.29.17 0 .34.01.49.07.15.06.33.24.42.44.13.29.43 1.05.47 1.12.04.07.07.16 0 .28-.07.12-.11.19-.22.3-.11.11-.23.24-.33.32-.11.09-.23.19 0 .58.23.39 1 1.65 2.15 2.67.92.82 1.66 1.08 2.27 1.36.19.09.43.19.66.19.38 0 .84-.09 1.17-.38.33-.29.68-1.23.68-1.67 0-.44-.15-.65-.33-.74z"/></svg>`
+
+    // WhatsApp - зеленый
+    WhatsApp: `<svg class="w-4 h-4 text-success" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.32a8.197 8.197 0 0 1-1.26-4.38c.04-4.54 3.74-8.23 8.25-8.23m4.53 11.38c-.19-.1-.64-.26-1.33-.62-.17-.1-.28-.15-.38.04s-.42.53-.51.64c-.1.11-.19.12-.38.03-.19-.1-.82-.3-1.55-.96-.58-.52-1-.1.17-1.12.35-.11-.16-.06-.29-.06-.4s-.37-.15-.56-.37c-.19-.21-.73-.73-.73-1.77s.75-1.63.98-1.87c.23-.23.49-.29.66-.29.17 0 .34.01.49.07.15.06.33.24.42.44.13.29.43 1.05.47 1.12.04.07.07.16 0 .28-.07.12-.11.19-.22.3-.11.11-.23.24-.33.32-.11.09-.23.19 0 .58.23.39 1 1.65 2.15 2.67.92.82 1.66 1.08 2.27 1.36.19.09.43.19.66.19.38 0 .84-.09 1.17-.38.33-.29.68-1.23.68-1.67 0-.44-.15-.65-.33-.74z"/></svg>`
 };
 
 function showToast(message: string, type: 'success' | 'error' = 'success') {
@@ -104,7 +105,7 @@ function renderCarousel() {
     if (!els.carouselTrack) return;
     els.carouselTrack.innerHTML = '';
     const isEditMode = !els.editActions.classList.contains('hidden');
-    
+
     currentPhotos.forEach((photo, index) => {
         const slide = document.createElement('div');
         slide.className = 'flex-shrink-0 w-full h-full snap-center relative group';
@@ -135,7 +136,7 @@ function renderCarousel() {
             </div>
         `;
         els.carouselTrack.appendChild(addSlide);
-    } 
+    }
     else if (currentPhotos.length === 0) {
         els.carouselTrack.innerHTML = `
             <div class="flex-shrink-0 w-full h-full snap-center bg-surface-dark flex flex-col items-center justify-center text-text-secondary/50">
@@ -259,22 +260,60 @@ if (els.btnFinishReg) {
     };
 }
 
-// ... Services (Same logic) ...
+// ... SERVICES LOGIC ...
 const srvList = document.getElementById('services-list')!;
 const addServiceForm = document.getElementById('add-service-form') as HTMLElement;
 const btnToggleAdd = document.getElementById('btn-toggle-add-service') as HTMLButtonElement;
 const btnCancelAdd = document.getElementById('btn-cancel-service') as HTMLButtonElement;
 const btnSaveService = document.getElementById('btn-save-service') as HTMLButtonElement;
+
 const inpName = document.getElementById('new-srv-name') as HTMLInputElement;
 const inpDesc = document.getElementById('new-srv-desc') as HTMLTextAreaElement;
 const inpPrice = document.getElementById('new-srv-price') as HTMLInputElement;
 const inpDur = document.getElementById('new-srv-dur') as HTMLInputElement;
 
-function toggleServiceForm(show: boolean) {
-    if (show) { addServiceForm.classList.remove('hidden'); addServiceForm.classList.add('flex'); btnToggleAdd.classList.add('hidden'); inpName.focus(); } 
-    else { addServiceForm.classList.add('hidden'); addServiceForm.classList.remove('flex'); btnToggleAdd.classList.remove('hidden'); inpName.value = ''; inpDesc.value = ''; inpPrice.value = ''; inpDur.value = '60'; }
+// 4. РЕДАКТИРОВАНИЕ: Состояние
+let isEditing = false;
+let editingServiceId: number | null = null;
+
+function toggleServiceForm(show: boolean, isEditMode = false) {
+    if (show) {
+        addServiceForm.classList.remove('hidden');
+        addServiceForm.classList.add('flex');
+        btnToggleAdd.classList.add('hidden');
+
+        // Меняем текст кнопки
+        btnSaveService.textContent = isEditMode ? 'Сохранить изменения' : 'Создать';
+
+        if (!isEditMode) {
+            // Очистка если это добавление
+            inpName.value = ''; inpDesc.value = ''; inpPrice.value = ''; inpDur.value = '60';
+            inpName.focus();
+        }
+    } else {
+        addServiceForm.classList.add('hidden');
+        addServiceForm.classList.remove('flex');
+        btnToggleAdd.classList.remove('hidden');
+        isEditing = false;
+        editingServiceId = null;
+    }
 }
-if(btnToggleAdd) btnToggleAdd.onclick = () => toggleServiceForm(true);
+
+// Запуск редактирования
+function editService(service: any) {
+    isEditing = true;
+    editingServiceId = service.id;
+
+    inpName.value = service.name;
+    inpDesc.value = service.description || '';
+    inpPrice.value = service.price;
+    inpDur.value = service.duration_min;
+
+    toggleServiceForm(true, true); // true = show, true = editMode
+    addServiceForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+if(btnToggleAdd) btnToggleAdd.onclick = () => toggleServiceForm(true, false);
 if(btnCancelAdd) btnCancelAdd.onclick = () => toggleServiceForm(false);
 
 async function loadServices() {
@@ -282,29 +321,45 @@ async function loadServices() {
         const services = await apiFetch('/me/services');
         srvList.innerHTML = '';
         if (services.length === 0) { srvList.innerHTML = '<div class="text-center text-text-secondary p-4 opacity-50">Список услуг пуст</div>'; return; }
+
+        // Сортировка по ID чтобы новые были внизу или вверху (по желанию), тут как приходит с базы
         services.forEach((s: any) => {
             const card = document.createElement('div');
-            // FIX: Dynamic colors
             card.className = 'w-full bg-surface-dark border border-border-dark/50 rounded-xl overflow-hidden transition-all mb-3';
+
             const header = document.createElement('div');
             header.className = 'p-4 flex justify-between items-center transition-colors min-h-[72px]';
+
             const infoDiv = document.createElement('div');
             infoDiv.className = 'flex flex-col gap-1 flex-1 min-w-0';
+
             const nameSpan = document.createElement('span');
-            // FIX: text-white becomes text-main
             nameSpan.className = 'text-white font-bold text-base leading-tight break-words';
             nameSpan.textContent = s.name;
+
             const detailsSpan = document.createElement('span');
             detailsSpan.className = 'text-primary text-sm font-bold';
             detailsSpan.textContent = `${s.price} ₸ • ${s.duration_min} мин`;
+
             infoDiv.appendChild(nameSpan); infoDiv.appendChild(detailsSpan);
+
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'flex items-center gap-1 shrink-0 ml-3';
+
+            // 4. РЕДАКТИРОВАНИЕ: Кнопка Edit
+            const editBtn = document.createElement('button');
+            editBtn.className = 'text-text-secondary/40 hover:text-primary p-2 rounded-full hover:bg-black/5 transition-colors z-20';
+            editBtn.innerHTML = '<span class="material-symbols-outlined">edit</span>';
+            editBtn.onclick = (e) => { e.stopPropagation(); editService(s); };
+
             const delBtn = document.createElement('button');
             delBtn.className = 'text-text-secondary/40 hover:text-error p-2 rounded-full hover:bg-black/5 transition-colors z-20';
             delBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
             delBtn.onclick = async (e) => { e.stopPropagation(); if (await showConfirm('Удалить эту услугу?')) { deleteService(s.id); } };
+
+            actionsDiv.appendChild(editBtn); // Добавили кнопку
             actionsDiv.appendChild(delBtn);
+
             let chevron: HTMLElement | null = null;
             const hasDescription = s.description && s.description.trim() !== '';
             if (hasDescription) {
@@ -313,14 +368,14 @@ async function loadServices() {
                 arrowBtn.appendChild(chevron); actionsDiv.appendChild(arrowBtn); header.classList.add('cursor-pointer', 'hover:bg-black/5');
             }
             header.appendChild(infoDiv); header.appendChild(actionsDiv); card.appendChild(header);
+
             if (hasDescription) {
                 const body = document.createElement('div');
-                // FIX: colors
                 body.className = 'hidden px-4 pb-4 pt-3 text-sm text-text-secondary/80 border-t border-border-dark/30 bg-black/5 break-words whitespace-normal w-full leading-relaxed';
                 body.textContent = s.description; card.appendChild(body);
                 header.onclick = () => {
                     const isHidden = body.classList.contains('hidden');
-                    if (isHidden) { body.classList.remove('hidden'); body.animate([{ opacity: 0, transform: 'translateY(-5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 200, easing: 'ease-out' }); if (chevron) chevron.style.transform = 'rotate(180deg)'; } 
+                    if (isHidden) { body.classList.remove('hidden'); body.animate([{ opacity: 0, transform: 'translateY(-5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 200, easing: 'ease-out' }); if (chevron) chevron.style.transform = 'rotate(180deg)'; }
                     else { body.classList.add('hidden'); if (chevron) chevron.style.transform = 'rotate(0deg)'; }
                 };
             }
@@ -328,10 +383,39 @@ async function loadServices() {
         });
     } catch (e) { srvList.innerHTML = '<div class="text-center text-text-secondary p-4">Ошибка загрузки услуг</div>'; }
 }
+
 if(btnSaveService) btnSaveService.onclick = async () => {
     if (!inpName.value || !inpPrice.value) { showToast('Введите название и цену', 'error'); return; }
-    btnSaveService.disabled = true; const originalText = btnSaveService.textContent; btnSaveService.textContent = '...';
-    try { await apiFetch('/me/services', { method: 'POST', body: JSON.stringify({ name: inpName.value, description: inpDesc.value, price: parseFloat(inpPrice.value), duration_min: parseInt(inpDur.value) || 60 }) }); await loadServices(); toggleServiceForm(false); showToast('Услуга добавлена'); } catch(e) { showToast('Ошибка сохранения', 'error'); } finally { btnSaveService.disabled = false; btnSaveService.textContent = originalText; }
+    btnSaveService.disabled = true;
+    const originalText = btnSaveService.textContent;
+    btnSaveService.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>';
+
+    try {
+        const payload = {
+            name: inpName.value,
+            description: inpDesc.value,
+            price: parseFloat(inpPrice.value),
+            duration_min: parseInt(inpDur.value) || 60
+        };
+
+        if (isEditing && editingServiceId) {
+            // PATCH
+            await apiFetch(`/me/services/${editingServiceId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+            showToast('Услуга обновлена');
+        } else {
+            // POST
+            await apiFetch('/me/services', { method: 'POST', body: JSON.stringify(payload) });
+            showToast('Услуга добавлена');
+        }
+
+        await loadServices();
+        toggleServiceForm(false);
+    } catch(e) {
+        showToast('Ошибка сохранения', 'error');
+    } finally {
+        btnSaveService.disabled = false;
+        btnSaveService.textContent = originalText;
+    }
 };
 async function deleteService(id: number) { try { await apiFetch(`/me/services/${id}`, { method: 'DELETE' }); loadServices(); showToast('Услуга удалена'); } catch (e) { showToast('Ошибка удаления', 'error'); } }
 
@@ -350,14 +434,14 @@ function renderScheduleForm(existingData: any[]) {
         // FIX: Dynamic background
         const row = document.createElement('div');
         row.className = `group flex items-center gap-3 bg-background-dark px-4 py-4 min-h-[64px] hover:bg-surface-dark transition-colors border-b border-border-dark/30 last:border-0 ${!isActive ? 'opacity-50' : ''}`;
-        
+
         const leftSide = document.createElement('div'); leftSide.className = 'flex items-center gap-3 flex-1 min-w-0';
         const checkWrap = document.createElement('div'); checkWrap.className = 'flex size-6 items-center justify-center shrink-0';
         const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.className = 'h-5 w-5 rounded border-border-dark border-2 bg-transparent text-primary checked:bg-primary focus:ring-0 cursor-pointer transition-all';
         checkbox.dataset.day = i.toString(); checkbox.checked = isActive; checkWrap.appendChild(checkbox);
         const label = document.createElement('p'); label.className = `text-white text-base font-medium truncate transition-all ${!isActive ? 'line-through decoration-text-secondary text-text-secondary' : ''}`;
         label.textContent = daysMap[i - 1]; leftSide.appendChild(checkWrap); leftSide.appendChild(label);
-        
+
         const settingsDiv = document.createElement('div'); settingsDiv.className = `flex items-center gap-2 shrink-0 transition-all ${!isActive ? 'pointer-events-none grayscale opacity-50' : ''}`;
         const createTimeInput = (val: string, cls: string) => {
             const inp = document.createElement('input'); inp.type = 'time';
@@ -371,7 +455,7 @@ function renderScheduleForm(existingData: any[]) {
         settingsDiv.appendChild(timeStart); settingsDiv.appendChild(sep); settingsDiv.appendChild(timeEnd);
 
         checkbox.onchange = () => {
-            if (checkbox.checked) { row.classList.remove('opacity-50'); settingsDiv.classList.remove('pointer-events-none', 'grayscale', 'opacity-50'); label.classList.remove('line-through', 'decoration-text-secondary', 'text-text-secondary'); } 
+            if (checkbox.checked) { row.classList.remove('opacity-50'); settingsDiv.classList.remove('pointer-events-none', 'grayscale', 'opacity-50'); label.classList.remove('line-through', 'decoration-text-secondary', 'text-text-secondary'); }
             else { row.classList.add('opacity-50'); settingsDiv.classList.add('pointer-events-none', 'grayscale', 'opacity-50'); label.classList.add('line-through', 'decoration-text-secondary', 'text-text-secondary'); }
         };
         row.appendChild(leftSide); row.appendChild(settingsDiv); scheduleContainer.appendChild(row);
@@ -480,10 +564,10 @@ function createRecordCardHTML(record: any) {
     const hasUsername = !!record.client_username;
     const msgIcon = hasUsername ? ICONS.Telegram : ICONS.WhatsApp;
     const msgText = hasUsername ? 'Telegram' : 'WhatsApp';
-    
-    // FIX: Telegram теперь синий, а не белый
-    const msgColorClass = hasUsername ? 'text-[#29b6f6]' : 'text-green-400';
-    
+
+    // FIX: Telegram - синий, WhatsApp - зеленый
+    const msgColorClass = hasUsername ? 'text-[#29b6f6]' : 'text-success';
+
     const petBreed = record.pet_breed || 'Не указана'; const serviceName = record.services?.name || 'Услуга удалена'; const clientName = record.client_name || 'Клиент'; const clientNote = record.comment;
 
     // FIX: Using bg-bg (variable) instead of hardcoded hex
