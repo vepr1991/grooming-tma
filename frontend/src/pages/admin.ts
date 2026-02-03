@@ -1,7 +1,6 @@
 /**
  * (c) 2026 Vladimir Kovalenko
  */
-// FIX: Вернули BASE_URL в импорт, он нужен для загрузки фото
 import { apiFetch, BASE_URL } from '../core/api';
 import { initTelegram, Telegram } from '../core/tg';
 
@@ -175,7 +174,6 @@ if (els.photoInput) {
         const formData = new FormData();
         formData.append('file', file);
         try {
-            // FIX: BASE_URL используется здесь
             const response = await fetch(`${BASE_URL}/me/upload-photo`, {
                 method: 'POST',
                 headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData },
@@ -529,6 +527,7 @@ function renderCalendar() {
             const day = parseInt((e.currentTarget as HTMLElement).dataset.day!);
             selectedDate = new Date(year, month, day);
             renderCalendar();
+            // При смене даты перерисовываем список (используя текущий кэш)
             renderAppointmentsList((window as any).cachedAppointments || []);
         });
     });
@@ -616,6 +615,7 @@ function renderAppointmentsList(apps: any[]) {
         tempDiv.innerHTML = createRecordCardHTML(a);
         const cardEl = tempDiv.firstElementChild as HTMLElement;
 
+        // --- 1. ЛОГИКА КНОПКИ "НАПИСАТЬ" ---
         const btnMsg = cardEl.querySelector('.btn-msg') as HTMLElement;
         if(btnMsg) btnMsg.onclick = () => {
             if (a.client_username) {
@@ -625,6 +625,16 @@ function renderAppointmentsList(apps: any[]) {
                 Telegram.WebApp.openLink(`https://wa.me/${phone}`);
             }
         };
+
+        // --- FIX: КЛИК ПО ТЕЛЕФОНУ (КОПИРОВАНИЕ) ---
+        const btnCopyPhone = cardEl.querySelector('.btn-copy-phone') as HTMLElement;
+        if(btnCopyPhone) {
+            btnCopyPhone.onclick = (e) => {
+                e.stopPropagation();
+                const phone = btnCopyPhone.dataset.phone || '';
+                navigator.clipboard.writeText(phone).then(() => showToast('Номер скопирован'));
+            };
+        }
 
         const btnConfirm = cardEl.querySelector('.btn-confirm') as HTMLButtonElement;
         if(btnConfirm) { btnConfirm.onclick = async () => { btnConfirm.innerHTML = '...'; btnConfirm.disabled = true; try { await apiFetch(`/me/appointments/${a.id}/confirm`, { method: 'POST' }); (window as any).loadAppointments(); showToast('Подтверждено'); } catch (e) { showToast('Ошибка', 'error'); } }; }
@@ -644,16 +654,19 @@ function createRecordCardHTML(record: any) {
     const dateObj = new Date(record.starts_at);
     const timeStr = dateObj.toLocaleTimeString('ru-RU', { timeZone: masterTimezone, hour: '2-digit', minute: '2-digit' });
 
+    // FIX: Используем прозрачные цвета вместо bg-opacity-10
     let config = { label: 'НЕИЗВЕСТНО', color: 'text-text-secondary', bg: 'bg-surface-dark', border: 'border-l-text-secondary' };
 
     switch (status) {
-        case 'pending': config = { label: 'ОЖИДАЕТ', color: 'text-orange-500', bg: 'bg-orange-500', border: 'border-l-orange-500 shadow-orange-500/5' }; break;
-        case 'confirmed': config = { label: 'ПОДТВЕРЖДЕНО', color: 'text-primary', bg: 'bg-primary', border: 'border-l-primary shadow-primary/20' }; break;
-        case 'completed': config = { label: 'ЗАВЕРШЕНО', color: 'text-success', bg: 'bg-success', border: 'border-l-success shadow-success/20' }; break;
-        case 'cancelled': config = { label: 'ОТМЕНЕНО', color: 'text-error', bg: 'bg-error', border: 'border-l-error shadow-error/20' }; break;
+        case 'pending': config = { label: 'ОЖИДАЕТ', color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-l-orange-500 shadow-orange-500/5' }; break;
+        case 'confirmed': config = { label: 'ПОДТВЕРЖДЕНО', color: 'text-primary', bg: 'bg-primary/10', border: 'border-l-primary shadow-primary/20' }; break;
+        case 'completed': config = { label: 'ЗАВЕРШЕНО', color: 'text-success', bg: 'bg-success/10', border: 'border-l-success shadow-success/20' }; break;
+        case 'cancelled': config = { label: 'ОТМЕНЕНО', color: 'text-error', bg: 'bg-error/10', border: 'border-l-error shadow-error/20' }; break;
     }
 
-    const dotClass = status === 'pending' ? 'bg-orange-500 animate-pulse' : config.bg;
+    // Если bg-orange-500/10 для pending не работает, попробуем просто orange-500 для пульсации
+    const dotClass = status === 'pending' ? 'bg-orange-500 animate-pulse' : config.bg.replace('/10', ''); // Убираем прозрачность для точки
+
     const petBreed = record.pet_breed || 'Не указана';
     const serviceName = record.services?.name || 'Услуга удалена';
     const clientName = record.client_name || 'Клиент';
@@ -680,7 +693,7 @@ function createRecordCardHTML(record: any) {
           <span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span>
           <span class="text-white font-bold text-xs">${timeStr}</span>
         </div>
-        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-opacity-10 ${config.bg} ${config.color}">${config.label}</span>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded ${config.bg} ${config.color}">${config.label}</span>
       </div>
       <div class="flex gap-4 items-start">
         <div class="w-20 h-20 rounded-2xl bg-background-dark flex-shrink-0 border border-border-dark shadow-inner flex items-center justify-center text-text-secondary/60">${ICONS.Pet}</div>
@@ -690,7 +703,12 @@ function createRecordCardHTML(record: any) {
             <div class="flex flex-col"><span class="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Услуга</span><p class="text-white text-[11px] font-medium truncate">${serviceName}</p></div>
             <div class="flex flex-col"><span class="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Порода</span><p class="text-white text-[11px] font-medium truncate">${petBreed}</p></div>
           </div>
-          <div class="pt-2 flex items-center gap-2"><span class="text-[11px] text-text-secondary truncate font-medium">${clientName}</span><a href="tel:${record.client_phone}" class="text-primary text-[11px] font-bold hover:text-primary/80 flex items-center gap-1 transition-colors">${ICONS.Phone} ${record.client_phone}</a></div>
+          <div class="pt-2 flex items-center gap-2">
+            <span class="text-[11px] text-text-secondary truncate font-medium">${clientName}</span>
+            <button data-phone="${record.client_phone}" class="btn-copy-phone text-primary text-[11px] font-bold hover:text-primary/80 flex items-center gap-1 transition-colors cursor-pointer bg-transparent border-none p-0 outline-none">
+                ${ICONS.Phone} ${record.client_phone}
+            </button>
+          </div>
         </div>
       </div>
       ${noteHTML}
