@@ -1,8 +1,8 @@
 /**
  * (c) 2026 Vladimir Kovalenko
  */
-// FIX 1: Убрали BASE_URL из импорта, так как он не используется
-import { apiFetch } from '../core/api';
+// FIX: Вернули BASE_URL в импорт, он нужен для загрузки фото
+import { apiFetch, BASE_URL } from '../core/api';
 import { initTelegram, Telegram } from '../core/tg';
 
 declare const IMask: any;
@@ -94,7 +94,6 @@ const els = {
 };
 
 let currentPhotos: string[] = [];
-// FIX 2: Убеждаемся, что originalData используется (см. btnCancel.onclick ниже)
 let originalData: any = {};
 
 function renderCarousel() {
@@ -176,6 +175,7 @@ if (els.photoInput) {
         const formData = new FormData();
         formData.append('file', file);
         try {
+            // FIX: BASE_URL используется здесь
             const response = await fetch(`${BASE_URL}/me/upload-photo`, {
                 method: 'POST',
                 headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData },
@@ -218,7 +218,6 @@ function toggleEditMode(enable: boolean) {
 }
 if(els.btnEditMode) els.btnEditMode.onclick = () => toggleEditMode(true);
 
-// FIX 2: Здесь мы используем originalData
 if(els.btnCancel) els.btnCancel.onclick = () => {
     els.name.value = originalData.name;
     els.address.value = originalData.address;
@@ -463,8 +462,9 @@ if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
 };
 
 // =========================================================
-// === ЗАПИСИ (Appointments) ===
+// === ЗАПИСИ (Appointments) С ТАБАМИ ===
 // =========================================================
+
 const appList = document.getElementById('appointments-list')!;
 const calendarContainer = document.getElementById('calendar-container')!;
 const tabsContainer = document.getElementById('appointment-tabs')!;
@@ -529,7 +529,6 @@ function renderCalendar() {
             const day = parseInt((e.currentTarget as HTMLElement).dataset.day!);
             selectedDate = new Date(year, month, day);
             renderCalendar();
-            // При смене даты перерисовываем список (используя текущий кэш)
             renderAppointmentsList((window as any).cachedAppointments || []);
         });
     });
@@ -558,8 +557,8 @@ function renderTabs() {
 
         btn.onclick = () => {
             activeTab = tab.id as any;
-            renderTabs(); // Перерисовать табы (для подсветки)
-            renderAppointmentsList((window as any).cachedAppointments || []); // Перерисовать список
+            renderTabs();
+            renderAppointmentsList((window as any).cachedAppointments || []);
         };
 
         tabsContainer.appendChild(btn);
@@ -571,7 +570,7 @@ function renderTabs() {
     if (!appList) return;
     appList.innerHTML = '<div class="text-center text-text-secondary py-8">Загрузка...</div>';
 
-    renderTabs(); // Рисуем табы сразу
+    renderTabs();
 
     try {
         const apps = await apiFetch('/me/appointments');
@@ -597,16 +596,13 @@ function renderAppointmentsList(apps: any[]) {
     if (!appList) return;
     appList.innerHTML = '';
 
-    // 1. Фильтр по ДАТЕ
     let filtered = apps.filter((a: any) => {
         const d = new Date(a.starts_at);
         return d.toDateString() === selectedDate.toDateString();
     });
 
-    // 2. Фильтр по СТАТУСУ (Табу)
     filtered = filtered.filter((a: any) => a.status === activeTab);
 
-    // Обновляем заголовок и счетчик
     if (tabLabelEl) tabLabelEl.textContent = TABS.find(t => t.id === activeTab)?.label || '';
     if (tabCountEl) tabCountEl.textContent = filtered.length.toString();
 
@@ -620,7 +616,6 @@ function renderAppointmentsList(apps: any[]) {
         tempDiv.innerHTML = createRecordCardHTML(a);
         const cardEl = tempDiv.firstElementChild as HTMLElement;
 
-        // Handlers
         const btnMsg = cardEl.querySelector('.btn-msg') as HTMLElement;
         if(btnMsg) btnMsg.onclick = () => {
             if (a.client_username) {
