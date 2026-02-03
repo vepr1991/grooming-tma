@@ -81,7 +81,6 @@ async function loadMasterInfo() {
         masterData = await apiFetch(`/masters/${masterId}`);
         els.heroTitle.textContent = masterData.salon_name || 'Мастер';
 
-        // Телефон
         if (masterData.phone && els.heroPhone) {
             els.heroPhone.classList.remove('hidden');
             els.heroPhone.classList.add('flex');
@@ -89,7 +88,6 @@ async function loadMasterInfo() {
             els.heroPhone.setAttribute('href', `tel:${masterData.phone}`);
         }
 
-        // Описание
         if (masterData.description) {
             els.heroDesc.textContent = masterData.description;
             if (els.heroDesc.scrollHeight > els.heroDesc.clientHeight) {
@@ -111,7 +109,6 @@ async function loadMasterInfo() {
         }
 
     } catch (e) {
-        console.error(e);
         els.heroTitle.textContent = 'Мастер не найден';
         els.heroStatus.textContent = 'Ошибка';
     }
@@ -194,7 +191,7 @@ function checkOpenStatus(timezone: string) {
     } catch (e) { console.error(e); }
 }
 
-// === FIX: ВЕРНУЛИ СПИСОК (БЕЗ АККОРДЕОНА) ===
+// === ЛОГИКА ВЫБОРА УСЛУГИ (КАК В REACT-ПРИМЕРЕ) ===
 async function loadServices() {
     try {
         services = await apiFetch(`/masters/${masterId}/services`);
@@ -205,43 +202,138 @@ async function loadServices() {
             return;
         }
 
+        // Рендерим каждую услугу
         services.forEach(srv => {
-            const el = document.createElement('div');
-            // Стиль карточки: Кликабельная, с тенью и эффектом нажатия
-            el.className = 'bg-surface p-4 rounded-xl border border-border flex justify-between items-center active:scale-[0.98] transition-all cursor-pointer shadow-sm hover:border-primary/50';
-            el.innerHTML = `
-                <div class="flex flex-col gap-1 overflow-hidden pr-4">
-                    <span class="text-white font-bold text-base leading-tight">${srv.name}</span>
-                    <span class="text-secondary text-xs">${srv.duration_min} мин</span>
+            // Элемент списка (кнопка)
+            const btn = document.createElement('button');
+            // Базовые стили + transition
+            btn.className = `group w-full text-left bg-surface hover:bg-white/5 active:scale-[0.99] transition-all duration-300 p-4 rounded-xl shadow-sm border border-border flex flex-col gap-2`;
+
+            // Иконка услуги (заглушка или из данных, если есть)
+            // Генерируем цвет для иконки (просто для красоты, или фиксированный primary)
+            const iconColor = "var(--c-primary)";
+
+            btn.innerHTML = `
+                <div class="flex items-center justify-between gap-4 w-full">
+                    <div class="flex items-center gap-4 overflow-hidden">
+                        <div class="flex items-center justify-center rounded-lg shrink-0 size-12 transition-transform duration-300 group-active:scale-95 bg-primary/10 text-primary">
+                            <span class="material-symbols-outlined text-[26px]">content_cut</span>
+                        </div>
+                        <div class="flex flex-col justify-center overflow-hidden">
+                            <p class="text-white text-[16px] font-bold leading-tight line-clamp-1 mb-0.5">${srv.name}</p>
+                            <div class="flex items-center gap-1 text-secondary text-[12px]">
+                                <span class="material-symbols-outlined text-[14px] align-middle">schedule</span>
+                                <span class="font-medium">${srv.duration_min} мин</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="shrink-0 flex flex-col items-end">
+                        <p class="text-primary text-[16px] font-bold leading-normal">${srv.price.toLocaleString()} ₸</p>
+                        <span id="chevron-${srv.id}" class="material-symbols-outlined text-secondary/40 text-[20px] transition-transform duration-300">chevron_right</span>
+                    </div>
                 </div>
-                <div class="flex items-center gap-3">
-                    <span class="text-primary font-bold text-base whitespace-nowrap">${srv.price} ₸</span>
-                    <span class="material-symbols-rounded text-secondary/50 text-xl">chevron_right</span>
+
+                <div id="desc-wrapper-${srv.id}" class="grid transition-all duration-300 ease-in-out grid-rows-[0fr] opacity-0 mt-0">
+                    <div class="overflow-hidden">
+                        <p class="text-secondary text-[14px] leading-relaxed border-t border-border/50 pt-3">
+                            ${srv.description || 'Нет описания'}
+                        </p>
+                    </div>
                 </div>
             `;
-            // Прямой клик для записи
-            el.onclick = () => openBooking(srv);
-            els.servicesList.appendChild(el);
+
+            // Логика клика
+            btn.onclick = () => handleServiceClick(srv, btn);
+            els.servicesList.appendChild(btn);
         });
     } catch (e) {
         els.servicesList.innerHTML = '<div class="text-center text-error">Ошибка загрузки</div>';
     }
 }
 
-let calDate = new Date();
+// Храним ссылку на текущую активную кнопку, чтобы сбрасывать стили
+let currentActiveBtn: HTMLElement | null = null;
 
+function handleServiceClick(service: any, btnElement: HTMLElement) {
+    const isSame = selectedService?.id === service.id;
+
+    // 1. Сброс предыдущего
+    if (currentActiveBtn) {
+        updateServiceItemVisuals(currentActiveBtn, false);
+    }
+
+    // 2. Если кликнули на того же - снимаем выделение
+    if (isSame) {
+        selectedService = null;
+        currentActiveBtn = null;
+        Telegram.WebApp.MainButton.hide();
+    }
+    // 3. Если кликнули на нового - выделяем
+    else {
+        selectedService = service;
+        currentActiveBtn = btnElement;
+        updateServiceItemVisuals(btnElement, true);
+
+        // Показываем кнопку внизу
+        Telegram.WebApp.MainButton.setText(`ВЫБРАТЬ • ${service.price} ₸`);
+        Telegram.WebApp.MainButton.show();
+        // При клике на MainButton переходим к календарю
+        Telegram.WebApp.MainButton.onClick(() => openBooking(service));
+    }
+}
+
+function updateServiceItemVisuals(btn: HTMLElement, isSelected: boolean) {
+    const chevron = btn.querySelector('span[id^="chevron-"]') as HTMLElement;
+    const descWrapper = btn.querySelector('div[id^="desc-wrapper-"]') as HTMLElement;
+
+    if (isSelected) {
+        // Добавляем рамку
+        btn.classList.remove('border-border');
+        btn.classList.add('border-primary', 'ring-1', 'ring-primary');
+
+        // Поворачиваем стрелку и красим
+        if(chevron) {
+            chevron.classList.add('rotate-90', 'text-primary');
+            chevron.classList.remove('text-secondary/40');
+        }
+
+        // Раскрываем описание
+        if(descWrapper) {
+            descWrapper.classList.remove('grid-rows-[0fr]', 'opacity-0', 'mt-0');
+            descWrapper.classList.add('grid-rows-[1fr]', 'opacity-100', 'mt-2');
+        }
+    } else {
+        // Убираем рамку
+        btn.classList.add('border-border');
+        btn.classList.remove('border-primary', 'ring-1', 'ring-primary');
+
+        // Возвращаем стрелку
+        if(chevron) {
+            chevron.classList.remove('rotate-90', 'text-primary');
+            chevron.classList.add('text-secondary/40');
+        }
+
+        // Скрываем описание
+        if(descWrapper) {
+            descWrapper.classList.add('grid-rows-[0fr]', 'opacity-0', 'mt-0');
+            descWrapper.classList.remove('grid-rows-[1fr]', 'opacity-100', 'mt-2');
+        }
+    }
+}
+
+// Переход к календарю (вызывается кнопкой MainButton)
 function openBooking(service: any) {
-    selectedService = service;
-    els.selectedServiceName.textContent = `${service.name} • ${service.price} ₸`;
+    // Отвязываем обработчик MainButton от выбора услуги
+    Telegram.WebApp.MainButton.offClick(onMainButtonClick);
 
     views.home.classList.add('hidden');
     views.booking.classList.remove('hidden');
 
     Telegram.WebApp.BackButton.show();
     Telegram.WebApp.BackButton.onClick(goBack);
+    Telegram.WebApp.MainButton.hide(); // Скрываем, пока не выберут время
 
     calDate = new Date();
-
     const today = new Date();
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
@@ -250,19 +342,26 @@ function openBooking(service: any) {
 
     initCalendar();
 
-    if (masterData && masterData.timezone) {
-        loadSlots(selectedDate);
-    } else {
-        loadSlots(selectedDate);
-    }
+    if (masterData && masterData.timezone) loadSlots(selectedDate);
+    else loadSlots(selectedDate);
 }
+
+// ... (Далее код календаря и слотов без изменений) ...
 
 (window as any).goBack = goBack;
 function goBack() {
     views.booking.classList.add('hidden');
     views.home.classList.remove('hidden');
     Telegram.WebApp.BackButton.hide();
-    Telegram.WebApp.MainButton.hide();
+
+    // Если вернулись назад, услуга всё еще выбрана, показываем кнопку
+    if (selectedService) {
+        Telegram.WebApp.MainButton.setText(`ВЫБРАТЬ • ${selectedService.price} ₸`);
+        Telegram.WebApp.MainButton.show();
+        Telegram.WebApp.MainButton.onClick(() => openBooking(selectedService));
+    } else {
+        Telegram.WebApp.MainButton.hide();
+    }
 
     selectedDate = null;
     selectedSlot = null;
@@ -354,12 +453,23 @@ async function loadSlots(date: string) {
 function showBookingForm() {
     els.bookingForm.classList.remove('hidden');
     setTimeout(() => els.bookingForm.scrollIntoView({ behavior: 'smooth' }), 100);
-    // Кнопка появляется внизу, как и раньше
+
+    // Переназначаем обработчик на финальную запись
+    Telegram.WebApp.MainButton.offClick(openBooking); // Убираем старый (если был)
+    Telegram.WebApp.MainButton.onClick(onMainButtonClick); // Ставим новый
+
     Telegram.WebApp.MainButton.setText(`ЗАПИСАТЬСЯ • ${selectedService.price} ₸`);
     Telegram.WebApp.MainButton.show();
 }
 
 async function onMainButtonClick() {
+    // Если мы на экране выбора услуг (selectedSlot еще нет) -> переходим в календарь
+    if (!selectedSlot && selectedService) {
+        openBooking(selectedService);
+        return;
+    }
+
+    // Если мы в календаре и слот выбран -> записываемся
     const name = els.inpName.value.trim();
     const phone = els.inpPhone.value.trim();
 
@@ -388,7 +498,6 @@ async function onMainButtonClick() {
             body: JSON.stringify(payload)
         });
 
-        // Показываем красивые данные в финальном экране
         if (selectedDate && selectedSlot) {
             const dateObj = new Date(selectedSlot);
             const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: masterData.timezone });
@@ -408,5 +517,4 @@ async function onMainButtonClick() {
     }
 }
 
-// Start
 init();
