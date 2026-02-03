@@ -1,3 +1,4 @@
+# (c) 2026 Владимир Коваленко. Все права защищены.
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from typing import List
 from datetime import datetime
