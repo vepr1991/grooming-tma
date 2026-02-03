@@ -1,6 +1,4 @@
-/**
- * (c) 2026 Vladimir Kovalenko
- */
+// ... (imports and state are the same) ...
 import { apiFetch } from '../core/api';
 import { Telegram, initTelegram } from '../core/tg';
 
@@ -8,21 +6,18 @@ declare const IMask: any;
 
 initTelegram();
 
-// -- STATE --
 const urlParams = new URLSearchParams(window.location.search);
 const masterId = urlParams.get('start_param') || '579214945';
 
 let masterData: any = null;
-let services: any[] = []; // Используется для хранения загруженных услуг
+let services: any[] = [];
 let selectedService: any = null;
 let selectedDate: string | null = null;
 let selectedSlot: string | null = null;
 
-// FIX: Перенесли объявление глобальных переменных наверх
+// FIX: Переменные на верхнем уровне
 let calDate = new Date();
-let currentActiveBtn: HTMLElement | null = null;
 
-// -- DOM ELEMENTS --
 const views = {
     home: document.getElementById('view-home')!,
     booking: document.getElementById('view-booking')!,
@@ -62,24 +57,19 @@ const els = {
     successService: document.getElementById('success-service')!
 };
 
-// -- INIT --
 async function init() {
     if (typeof IMask !== 'undefined' && els.inpPhone) {
         IMask(els.inpPhone, { mask: '+{7} (000) 000-00-00', lazy: false });
     }
-
     if (Telegram.WebApp.initDataUnsafe?.user) {
         const u = Telegram.WebApp.initDataUnsafe.user;
         if (els.inpName) els.inpName.value = `${u.first_name} ${u.last_name || ''}`.trim();
     }
-
     Telegram.WebApp.MainButton.onClick(onMainButtonClick);
-
     await loadMasterInfo();
     await loadServices();
 }
 
-// -- LOAD MASTER INFO --
 async function loadMasterInfo() {
     try {
         masterData = await apiFetch(`/masters/${masterId}`);
@@ -105,13 +95,8 @@ async function loadMasterInfo() {
         } else {
             els.heroDesc.textContent = 'Нет описания';
         }
-
         renderClientCarousel();
-
-        if (masterData.timezone) {
-            checkOpenStatus(masterData.timezone);
-        }
-
+        if (masterData.timezone) checkOpenStatus(masterData.timezone);
     } catch (e) {
         els.heroTitle.textContent = 'Мастер не найден';
         els.heroStatus.textContent = 'Ошибка';
@@ -121,37 +106,25 @@ async function loadMasterInfo() {
 function renderClientCarousel() {
     if (!els.carouselTrack) return;
     els.carouselTrack.innerHTML = '';
-
     let photos: string[] = [];
     if (!masterData) return;
-
     if (masterData.photos) {
-        if (Array.isArray(masterData.photos)) {
-            photos = masterData.photos;
-        } else if (typeof masterData.photos === 'string') {
+        if (Array.isArray(masterData.photos)) photos = masterData.photos;
+        else if (typeof masterData.photos === 'string') {
             try { photos = JSON.parse(masterData.photos); } catch (e) { photos = [masterData.photos]; }
         }
     }
-
-    if (photos.length === 0 && masterData.avatar_url) {
-        photos = [masterData.avatar_url];
-    }
-
+    if (photos.length === 0 && masterData.avatar_url) photos = [masterData.avatar_url];
     if (photos.length === 0) {
-        els.carouselTrack.innerHTML = `
-            <div class="flex-shrink-0 w-full h-full snap-center bg-surface flex flex-col items-center justify-center text-secondary/30">
-                <span class="material-symbols-rounded text-6xl mb-2">storefront</span>
-            </div>`;
+        els.carouselTrack.innerHTML = `<div class="flex-shrink-0 w-full h-full snap-center bg-surface flex flex-col items-center justify-center text-secondary/30"><span class="material-symbols-rounded text-6xl mb-2">storefront</span></div>`;
         return;
     }
-
     photos.forEach((url, index) => {
         const slide = document.createElement('div');
         slide.className = 'flex-shrink-0 w-full h-full snap-center';
         slide.innerHTML = `<img src="${url}" alt="Salon Photo ${index}" class="w-full h-full object-cover">`;
         els.carouselTrack.appendChild(slide);
     });
-
     if (els.carouselIndicators) {
         els.carouselIndicators.innerHTML = '';
         if (photos.length > 1) {
@@ -160,7 +133,6 @@ function renderClientCarousel() {
                 dot.className = `h-1.5 rounded-full transition-all duration-300 ${i === 0 ? 'bg-primary w-3' : 'bg-secondary/30 w-1.5'}`;
                 els.carouselIndicators.appendChild(dot);
             });
-
             els.carouselTrack.addEventListener('scroll', () => {
                 const scrollPos = els.carouselTrack.scrollLeft;
                 const width = els.carouselTrack.clientWidth;
@@ -178,158 +150,98 @@ function checkOpenStatus(timezone: string) {
         const now = new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour12: false });
         const [h, m] = now.split(':').map(Number);
         const currentMinutes = h * 60 + m;
-        const start = 9 * 60;
-        const end = 21 * 60;
-
+        const start = 9 * 60; const end = 21 * 60;
         if (currentMinutes >= start && currentMinutes < end) {
-            els.heroStatus.textContent = "Открыто сейчас";
-            els.heroStatus.className = "text-[#31b545] text-xs font-bold uppercase tracking-wider";
+            els.heroStatus.textContent = "Открыто сейчас"; els.heroStatus.className = "text-[#31b545] text-xs font-bold uppercase tracking-wider";
             els.statusDot.className = "absolute bottom-1 right-1 w-5 h-5 bg-[#31b545] border-4 border-bg rounded-full z-20";
             els.statusTextDot.className = "text-[#31b545] text-[10px]";
         } else {
-            els.heroStatus.textContent = "Закрыто";
-            els.heroStatus.className = "text-gray-400 text-xs font-bold uppercase tracking-wider";
+            els.heroStatus.textContent = "Закрыто"; els.heroStatus.className = "text-gray-400 text-xs font-bold uppercase tracking-wider";
             els.statusDot.className = "absolute bottom-1 right-1 w-5 h-5 bg-gray-500 border-4 border-bg rounded-full z-20";
             els.statusTextDot.className = "text-gray-500 text-[10px]";
         }
     } catch (e) { console.error(e); }
 }
 
-// === ЛОГИКА ВЫБОРА УСЛУГИ ===
 async function loadServices() {
     try {
         services = await apiFetch(`/masters/${masterId}/services`);
         els.servicesList.innerHTML = '';
-
         if (services.length === 0) {
-            els.servicesList.innerHTML = '<div class="text-center text-secondary py-4">Нет услуг</div>';
-            return;
+            els.servicesList.innerHTML = '<div class="text-center text-secondary py-4">Нет услуг</div>'; return;
         }
-
-        // Рендерим каждую услугу
         services.forEach(srv => {
-            const btn = document.createElement('button');
-            // Базовые стили + transition
-            btn.className = `group w-full text-left bg-surface hover:bg-white/5 active:scale-[0.99] transition-all duration-300 p-4 rounded-xl shadow-sm border border-border flex flex-col gap-2`;
+            const card = document.createElement('div');
+            // FIX: Аккуратно используем Tailwind классы, которые мапятся на переменные
+            card.className = 'w-full bg-surface border border-border rounded-xl overflow-hidden shadow-sm transition-all mb-3';
 
-            // FIX: Убрали неиспользуемую переменную iconColor
+            // Header
+            const header = document.createElement('div');
+            header.className = 'p-4 flex justify-between items-center cursor-pointer active:bg-bg/50 transition-colors min-h-[72px]';
 
-            btn.innerHTML = `
-                <div class="flex items-center justify-between gap-4 w-full">
-                    <div class="flex items-center gap-4 overflow-hidden">
-                        <div class="flex items-center justify-center rounded-lg shrink-0 size-12 transition-transform duration-300 group-active:scale-95 bg-primary/10 text-primary">
-                            <span class="material-symbols-outlined text-[26px]">content_cut</span>
-                        </div>
-                        <div class="flex flex-col justify-center overflow-hidden">
-                            <p class="text-white text-[16px] font-bold leading-tight line-clamp-1 mb-0.5">${srv.name}</p>
-                            <div class="flex items-center gap-1 text-secondary text-[12px]">
-                                <span class="material-symbols-outlined text-[14px] align-middle">schedule</span>
-                                <span class="font-medium">${srv.duration_min} мин</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="shrink-0 flex flex-col items-end">
-                        <p class="text-primary text-[16px] font-bold leading-normal">${srv.price.toLocaleString()} ₸</p>
-                        <span id="chevron-${srv.id}" class="material-symbols-outlined text-secondary/40 text-[20px] transition-transform duration-300">chevron_right</span>
-                    </div>
-                </div>
-
-                <div id="desc-wrapper-${srv.id}" class="grid transition-all duration-300 ease-in-out grid-rows-[0fr] opacity-0 mt-0">
-                    <div class="overflow-hidden">
-                        <p class="text-secondary text-[14px] leading-relaxed border-t border-border/50 pt-3">
-                            ${srv.description || 'Нет описания'}
-                        </p>
-                    </div>
-                </div>
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'flex flex-col gap-1 flex-1 min-w-0 pr-4';
+            infoDiv.innerHTML = `
+                <span class="text-white font-bold text-base leading-tight">${srv.name}</span>
+                <span class="text-secondary text-xs">${srv.duration_min} мин</span>
             `;
 
-            // Логика клика
-            btn.onclick = () => handleServiceClick(srv, btn);
-            els.servicesList.appendChild(btn);
+            const rightDiv = document.createElement('div');
+            rightDiv.className = 'flex items-center gap-3';
+            rightDiv.innerHTML = `<span class="text-primary font-bold text-base whitespace-nowrap">${srv.price} ₸</span>`;
+
+            const chevron = document.createElement('span');
+            chevron.className = 'material-symbols-rounded text-secondary/50 text-xl transition-transform duration-300';
+            chevron.textContent = 'expand_more';
+            rightDiv.appendChild(chevron);
+            header.appendChild(infoDiv);
+            header.appendChild(rightDiv);
+
+            // Body
+            const body = document.createElement('div');
+            body.className = 'hidden px-4 pb-4 pt-0 border-t border-border/30 bg-bg/20';
+
+            const descText = srv.description ? `<p class="text-sm text-secondary py-3 leading-relaxed">${srv.description}</p>` : '<div class="h-2"></div>';
+
+            // Кнопка ВНИЗУ
+            body.innerHTML = `
+                ${descText}
+                <button class="w-full bg-primary text-white font-bold py-3 rounded-xl active:scale-[0.98] transition-all shadow-lg shadow-primary/20 mt-2">
+                    Записаться
+                </button>
+            `;
+
+            const bookBtn = body.querySelector('button')!;
+            bookBtn.onclick = (e) => {
+                e.stopPropagation();
+                openBooking(srv);
+            };
+
+            header.onclick = () => {
+                const isHidden = body.classList.contains('hidden');
+                if (isHidden) {
+                    body.classList.remove('hidden');
+                    chevron.style.transform = 'rotate(180deg)';
+                } else {
+                    body.classList.add('hidden');
+                    chevron.style.transform = 'rotate(0deg)';
+                }
+            };
+
+            card.appendChild(header);
+            card.appendChild(body);
+            els.servicesList.appendChild(card);
         });
-    } catch (e) {
-        els.servicesList.innerHTML = '<div class="text-center text-error">Ошибка загрузки</div>';
-    }
+    } catch (e) { els.servicesList.innerHTML = '<div class="text-center text-error">Ошибка загрузки</div>'; }
 }
 
-function handleServiceClick(service: any, btnElement: HTMLElement) {
-    const isSame = selectedService?.id === service.id;
-
-    // 1. Сброс предыдущего
-    if (currentActiveBtn) {
-        updateServiceItemVisuals(currentActiveBtn, false);
-    }
-
-    // 2. Если кликнули на того же - снимаем выделение
-    if (isSame) {
-        selectedService = null;
-        currentActiveBtn = null;
-        Telegram.WebApp.MainButton.hide();
-    }
-    // 3. Если кликнули на нового - выделяем
-    else {
-        selectedService = service;
-        currentActiveBtn = btnElement;
-        updateServiceItemVisuals(btnElement, true);
-
-        // Показываем кнопку внизу
-        Telegram.WebApp.MainButton.setText(`ВЫБРАТЬ • ${service.price} ₸`);
-        Telegram.WebApp.MainButton.show();
-        // При клике на MainButton переходим к календарю
-        Telegram.WebApp.MainButton.onClick(() => openBooking());
-    }
-}
-
-function updateServiceItemVisuals(btn: HTMLElement, isSelected: boolean) {
-    const chevron = btn.querySelector('span[id^="chevron-"]') as HTMLElement;
-    const descWrapper = btn.querySelector('div[id^="desc-wrapper-"]') as HTMLElement;
-
-    if (isSelected) {
-        // Добавляем рамку
-        btn.classList.remove('border-border');
-        btn.classList.add('border-primary', 'ring-1', 'ring-primary');
-
-        // Поворачиваем стрелку и красим
-        if(chevron) {
-            chevron.classList.add('rotate-90', 'text-primary');
-            chevron.classList.remove('text-secondary/40');
-        }
-
-        // Раскрываем описание
-        if(descWrapper) {
-            descWrapper.classList.remove('grid-rows-[0fr]', 'opacity-0', 'mt-0');
-            descWrapper.classList.add('grid-rows-[1fr]', 'opacity-100', 'mt-2');
-        }
-    } else {
-        // Убираем рамку
-        btn.classList.add('border-border');
-        btn.classList.remove('border-primary', 'ring-1', 'ring-primary');
-
-        // Возвращаем стрелку
-        if(chevron) {
-            chevron.classList.remove('rotate-90', 'text-primary');
-            chevron.classList.add('text-secondary/40');
-        }
-
-        // Скрываем описание
-        if(descWrapper) {
-            descWrapper.classList.add('grid-rows-[0fr]', 'opacity-0', 'mt-0');
-            descWrapper.classList.remove('grid-rows-[1fr]', 'opacity-100', 'mt-2');
-        }
-    }
-}
-
-// FIX: Убрали неиспользуемый параметр service
-function openBooking() {
-    // Отвязываем обработчик MainButton от выбора услуги
-    Telegram.WebApp.MainButton.offClick(onMainButtonClick);
-
+function openBooking(service: any) {
+    selectedService = service;
+    els.selectedServiceName.textContent = `${service.name} • ${service.price} ₸`;
     views.home.classList.add('hidden');
     views.booking.classList.remove('hidden');
-
     Telegram.WebApp.BackButton.show();
     Telegram.WebApp.BackButton.onClick(goBack);
-    Telegram.WebApp.MainButton.hide(); // Скрываем, пока не выберут время
 
     calDate = new Date();
     const today = new Date();
@@ -339,7 +251,6 @@ function openBooking() {
     selectedDate = `${y}-${m}-${d}`;
 
     initCalendar();
-
     if (masterData && masterData.timezone) loadSlots(selectedDate);
     else loadSlots(selectedDate);
 }
@@ -349,18 +260,8 @@ function goBack() {
     views.booking.classList.add('hidden');
     views.home.classList.remove('hidden');
     Telegram.WebApp.BackButton.hide();
-
-    // Если вернулись назад, услуга всё еще выбрана, показываем кнопку
-    if (selectedService) {
-        Telegram.WebApp.MainButton.setText(`ВЫБРАТЬ • ${selectedService.price} ₸`);
-        Telegram.WebApp.MainButton.show();
-        Telegram.WebApp.MainButton.onClick(() => openBooking());
-    } else {
-        Telegram.WebApp.MainButton.hide();
-    }
-
-    selectedDate = null;
-    selectedSlot = null;
+    Telegram.WebApp.MainButton.hide();
+    selectedDate = null; selectedSlot = null;
     els.slotsContainer.classList.add('hidden');
     els.bookingForm.classList.add('hidden');
 }
@@ -372,33 +273,22 @@ function initCalendar() {
 }
 
 function renderCalendar() {
-    const year = calDate.getFullYear();
-    const month = calDate.getMonth();
+    const year = calDate.getFullYear(); const month = calDate.getMonth();
     els.calMonth.textContent = new Date(year, month).toLocaleString('ru', { month: 'long', year: 'numeric' });
     const firstDay = new Date(year, month, 1).getDay() || 7;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     els.calGrid.innerHTML = '';
     for (let i = 1; i < firstDay; i++) els.calGrid.appendChild(document.createElement('div'));
-
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
+    const today = new Date(); today.setHours(0,0,0,0);
     for (let d = 1; d <= daysInMonth; d++) {
         const date = new Date(year, month, d);
-        const isPast = date < today;
-        const isToday = date.getTime() === today.getTime();
-
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
+        const isPast = date < today; const isToday = date.getTime() === today.getTime();
+        const y = date.getFullYear(); const m = String(date.getMonth() + 1).padStart(2, '0'); const day = String(date.getDate()).padStart(2, '0');
         const dateStr = `${y}-${m}-${day}`;
-
         const isSelected = selectedDate === dateStr;
-
         const cell = document.createElement('div');
         cell.className = `day-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isPast ? 'disabled' : ''}`;
         cell.textContent = d.toString();
-
         if (!isPast) {
             cell.onclick = () => {
                 document.querySelector('.day-cell.selected')?.classList.remove('selected');
@@ -416,23 +306,14 @@ async function loadSlots(date: string) {
     els.slotsGrid.innerHTML = '<div class="col-span-4 text-center text-secondary text-sm py-4">Поиск окошек...</div>';
     els.bookingForm.classList.add('hidden');
     Telegram.WebApp.MainButton.hide();
-
     try {
         const slots = await apiFetch(`/masters/${masterId}/availability?date=${date}`);
         els.slotsGrid.innerHTML = '';
-
-        if (slots.length === 0) {
-            els.slotsGrid.innerHTML = '<div class="col-span-4 text-center text-secondary/50 text-sm py-2">Нет мест</div>';
-            return;
-        }
-
+        if (slots.length === 0) { els.slotsGrid.innerHTML = '<div class="col-span-4 text-center text-secondary/50 text-sm py-2">Нет мест</div>'; return; }
         const tz = (masterData && masterData.timezone) ? masterData.timezone : 'Asia/Almaty';
-
         slots.forEach((isoTime: string) => {
             const time = new Date(isoTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-            const btn = document.createElement('button');
-            btn.className = 'slot-btn';
-            btn.textContent = time;
+            const btn = document.createElement('button'); btn.className = 'slot-btn'; btn.textContent = time;
             btn.onclick = () => {
                 document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
@@ -441,39 +322,21 @@ async function loadSlots(date: string) {
             };
             els.slotsGrid.appendChild(btn);
         });
-    } catch (e) {
-        els.slotsGrid.innerHTML = '<div class="col-span-4 text-center text-error text-sm">Ошибка</div>';
-    }
+    } catch (e) { els.slotsGrid.innerHTML = '<div class="col-span-4 text-center text-error text-sm">Ошибка</div>'; }
 }
 
 function showBookingForm() {
     els.bookingForm.classList.remove('hidden');
     setTimeout(() => els.bookingForm.scrollIntoView({ behavior: 'smooth' }), 100);
-
-    Telegram.WebApp.MainButton.offClick(openBooking);
-    Telegram.WebApp.MainButton.onClick(onMainButtonClick);
-
     Telegram.WebApp.MainButton.setText(`ЗАПИСАТЬСЯ • ${selectedService.price} ₸`);
     Telegram.WebApp.MainButton.show();
 }
 
 async function onMainButtonClick() {
-    // Если слота нет, но есть услуга - идем в календарь
-    if (!selectedSlot && selectedService) {
-        openBooking();
-        return;
-    }
-
     const name = els.inpName.value.trim();
     const phone = els.inpPhone.value.trim();
-
-    if (!name || phone.length < 10) {
-        Telegram.WebApp.showAlert('Введите имя и телефон');
-        return;
-    }
-
+    if (!name || phone.length < 10) { Telegram.WebApp.showAlert('Введите имя и телефон'); return; }
     Telegram.WebApp.MainButton.showProgress();
-
     try {
         const payload = {
             master_telegram_id: parseInt(masterId),
@@ -486,30 +349,24 @@ async function onMainButtonClick() {
             pet_breed: els.inpPetBreed.value.trim() || null,
             comment: els.inpComment.value.trim() || null
         };
-
-        await apiFetch('/appointments', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
+        await apiFetch('/appointments', { method: 'POST', body: JSON.stringify(payload) });
 
         if (selectedDate && selectedSlot) {
             const dateObj = new Date(selectedSlot);
             const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: masterData.timezone });
             const dateStr = dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 
-            if(els.successDate) els.successDate.textContent = `${dateStr} в ${timeStr}`;
-            if(els.successService) els.successService.textContent = selectedService.name;
+            els.successDate.textContent = `${dateStr} в ${timeStr}`;
+            els.successService.textContent = selectedService.name;
         }
 
         views.booking.classList.add('hidden');
         views.success.classList.remove('hidden');
         Telegram.WebApp.MainButton.hide();
-
     } catch (e) {
         Telegram.WebApp.showAlert('Ошибка записи. Попробуйте другое время.');
         Telegram.WebApp.MainButton.hideProgress();
     }
 }
 
-// Start
 init();
