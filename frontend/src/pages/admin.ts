@@ -577,12 +577,14 @@ function renderTabs() {
 
         const datesSet = new Set<string>();
         apps.forEach((a: any) => {
-            if (a.status === 'cancelled') return;
-            const d = new Date(a.starts_at);
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            datesSet.add(`${y}-${m}-${day}`);
+            // FIX: Точки только для pending и confirmed
+            if (a.status === 'pending' || a.status === 'confirmed') {
+                const d = new Date(a.starts_at);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                datesSet.add(`${y}-${m}-${day}`);
+            }
         });
         busyDates = Array.from(datesSet);
 
@@ -595,13 +597,16 @@ function renderAppointmentsList(apps: any[]) {
     if (!appList) return;
     appList.innerHTML = '';
 
+    // 1. Фильтр по ДАТЕ
     let filtered = apps.filter((a: any) => {
         const d = new Date(a.starts_at);
         return d.toDateString() === selectedDate.toDateString();
     });
 
+    // 2. Фильтр по СТАТУСУ (Табу)
     filtered = filtered.filter((a: any) => a.status === activeTab);
 
+    // Обновляем заголовок и счетчик
     if (tabLabelEl) tabLabelEl.textContent = TABS.find(t => t.id === activeTab)?.label || '';
     if (tabCountEl) tabCountEl.textContent = filtered.length.toString();
 
@@ -615,7 +620,7 @@ function renderAppointmentsList(apps: any[]) {
         tempDiv.innerHTML = createRecordCardHTML(a);
         const cardEl = tempDiv.firstElementChild as HTMLElement;
 
-        // --- 1. ЛОГИКА КНОПКИ "НАПИСАТЬ" ---
+        // Handlers
         const btnMsg = cardEl.querySelector('.btn-msg') as HTMLElement;
         if(btnMsg) btnMsg.onclick = () => {
             if (a.client_username) {
@@ -626,7 +631,7 @@ function renderAppointmentsList(apps: any[]) {
             }
         };
 
-        // --- FIX: КЛИК ПО ТЕЛЕФОНУ (КОПИРОВАНИЕ) ---
+        // FIX: Клик по телефону (копирование)
         const btnCopyPhone = cardEl.querySelector('.btn-copy-phone') as HTMLElement;
         if(btnCopyPhone) {
             btnCopyPhone.onclick = (e) => {
@@ -654,7 +659,7 @@ function createRecordCardHTML(record: any) {
     const dateObj = new Date(record.starts_at);
     const timeStr = dateObj.toLocaleTimeString('ru-RU', { timeZone: masterTimezone, hour: '2-digit', minute: '2-digit' });
 
-    // FIX: Используем прозрачные цвета вместо bg-opacity-10
+    // FIX: Используем прозрачные цвета вместо bg-opacity-10 для лучшей видимости
     let config = { label: 'НЕИЗВЕСТНО', color: 'text-text-secondary', bg: 'bg-surface-dark', border: 'border-l-text-secondary' };
 
     switch (status) {
@@ -664,7 +669,6 @@ function createRecordCardHTML(record: any) {
         case 'cancelled': config = { label: 'ОТМЕНЕНО', color: 'text-error', bg: 'bg-error/10', border: 'border-l-error shadow-error/20' }; break;
     }
 
-    // Если bg-orange-500/10 для pending не работает, попробуем просто orange-500 для пульсации
     const dotClass = status === 'pending' ? 'bg-orange-500 animate-pulse' : config.bg.replace('/10', ''); // Убираем прозрачность для точки
 
     const petBreed = record.pet_breed || 'Не указана';
