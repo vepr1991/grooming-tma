@@ -8,6 +8,8 @@ import { Telegram } from '../../core/tg';
 
 let appointmentsCache: Appointment[] = [];
 let selectedDate = new Date();
+// Используем локальную переменную viewDate для навигации по календарю
+let viewDate = new Date();
 let activeTab: Appointment['status'] = 'pending';
 
 const TABS = [
@@ -17,14 +19,21 @@ const TABS = [
     { id: 'cancelled', label: 'Отмененные' }
 ];
 
+const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const WEEK_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
 export async function loadAppointments() {
     renderTabs();
-    $('appointments-list')!.innerHTML = '<div class="text-center text-text-secondary py-8">Загрузка...</div>';
+    const list = $('appointments-list');
+    if(list) list.innerHTML = '<div class="text-center text-text-secondary py-8">Загрузка...</div>';
+
     try {
         appointmentsCache = await apiFetch<Appointment[]>('/me/appointments');
         renderCalendar();
         renderList();
-    } catch { $('appointments-list')!.innerHTML = '<div class="text-center text-error">Ошибка сети</div>'; }
+    } catch {
+        if(list) list.innerHTML = '<div class="text-center text-error">Ошибка сети</div>';
+    }
 }
 
 function renderTabs() {
@@ -42,29 +51,89 @@ function renderTabs() {
     });
 }
 
+function changeMonth(offset: number) {
+    viewDate.setMonth(viewDate.getMonth() + offset);
+    renderCalendar();
+}
+
 function renderCalendar() {
     const container = $('calendar-container');
     if (!container) return;
 
-    // Simple calendar logic re-implemented here or imported if shared
-    // For brevity, assuming similar logic to original but ensuring dots appear for busy days
+    // FIX: Используем busyDates для отрисовки точек
     const busyDates = new Set(appointmentsCache
         .filter(a => ['pending', 'confirmed'].includes(a.status))
         .map(a => a.starts_at.split('T')[0]));
 
-    // ... (Calendar HTML generation simplified for brevity, similar to original code)
-    // Key: Add click listeners to days to update `selectedDate` and call `renderList()`
-    // We can reuse the `viewDate` state locally here.
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
 
-    // NOTE: In a real full file, I'd paste the full renderCalendar function here.
-    // Since I must provide full code, I will implement a minimal version:
-
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
+    // FIX: Используем daysInMonth
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    // ... (Full calendar rendering logic is essentially DOM manipulation strings)
-    // I will skip the 50 lines of calendar generation string here to save space,
-    // but in the final file it acts exactly like the original admin.ts
+    let firstDay = new Date(year, month, 1).getDay() - 1;
+    if (firstDay === -1) firstDay = 6;
+
+    const todayStr = new Date().toDateString();
+    const selectedStr = selectedDate.toDateString();
+
+    let html = `
+        <div class="px-4 pt-4 pb-2">
+            <div class="flex justify-between items-center mb-3 px-2">
+                <h2 class="text-lg font-bold text-white capitalize">${MONTH_NAMES[month]} ${year}</h2>
+                <div class="flex gap-1">
+                    <button id="cal-prev" class="p-1.5 hover:bg-surface-dark/50 rounded-lg text-text-secondary active:bg-surface-dark transition-colors"><span class="material-symbols-outlined text-[20px]">chevron_left</span></button>
+                    <button id="cal-next" class="p-1.5 hover:bg-surface-dark/50 rounded-lg text-text-secondary active:bg-surface-dark transition-colors"><span class="material-symbols-outlined text-[20px]">chevron_right</span></button>
+                </div>
+            </div>
+            <div class="grid grid-cols-7 gap-1 text-center mb-2">
+                ${WEEK_DAYS.map(d => `<span class="text-[10px] font-bold text-text-secondary/60 uppercase tracking-wider">${d}</span>`).join('')}
+            </div>
+            <div class="grid grid-cols-7 gap-1">
+    `;
+
+    for (let i = 0; i < firstDay; i++) {
+        html += `<div class="h-9"></div>`;
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+        const currentDate = new Date(year, month, i);
+        const currentStr = currentDate.toDateString();
+
+        // Формируем ISO дату "YYYY-MM-DD" локально
+        const y = currentDate.getFullYear();
+        const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const d = String(currentDate.getDate()).padStart(2, '0');
+        const isoDate = `${y}-${m}-${d}`;
+
+        const isSelected = currentStr === selectedStr;
+        const isToday = currentStr === todayStr;
+        const hasRecords = busyDates.has(isoDate);
+
+        let classes = "h-9 flex flex-col items-center justify-center rounded-lg text-sm font-medium transition-all relative ";
+        if (isSelected) classes += "bg-primary text-fixed-white shadow-md shadow-primary/20 scale-105";
+        else if (isToday) classes += "text-primary border border-primary/30";
+        else classes += "text-text-secondary hover:bg-surface-dark";
+
+        const dotColor = isSelected ? 'bg-white' : 'bg-primary';
+        const dot = hasRecords ? `<span class="w-1 h-1 rounded-full absolute bottom-1.5 ${dotColor}"></span>` : '';
+
+        html += `<button class="day-btn ${classes}" data-day="${i}"><span>${i}</span>${dot}</button>`;
+    }
+
+    html += `</div></div>`;
+    container.innerHTML = html;
+
+    $('cal-prev')!.onclick = () => changeMonth(-1);
+    $('cal-next')!.onclick = () => changeMonth(1);
+
+    container.querySelectorAll('.day-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const day = parseInt((e.currentTarget as HTMLElement).dataset.day!);
+            selectedDate = new Date(year, month, day);
+            renderCalendar();
+            renderList();
+        });
+    });
 }
 
 function renderList() {
@@ -72,7 +141,13 @@ function renderList() {
     if (!list) return;
     list.innerHTML = '';
 
-    const dateStr = selectedDate.toISOString().split('T')[0];
+    // Формируем строку YYYY-MM-DD с учетом локального времени (важно, чтобы не сдвигалось на UTC)
+    const y = selectedDate.getFullYear();
+    const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const d = String(selectedDate.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
+
+    // Фильтруем записи: дата должна начинаться с dateStr (ISO формат) И статус должен совпадать
     const filtered = appointmentsCache.filter(a => a.starts_at.startsWith(dateStr) && a.status === activeTab);
 
     setText('tab-label', TABS.find(t => t.id === activeTab)?.label || '');
@@ -90,7 +165,6 @@ function createCard(a: Appointment): HTMLElement {
     const el = document.createElement('div');
     const time = new Date(a.starts_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
-    // Status configs
     const configs: any = {
         pending: { label: 'ОЖИДАЕТ', color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-l-orange-500' },
         confirmed: { label: 'ПОДТВЕРЖДЕНО', color: 'text-primary', bg: 'bg-primary/10', border: 'border-l-primary' },
@@ -101,7 +175,6 @@ function createCard(a: Appointment): HTMLElement {
 
     el.className = `relative bg-surface-dark rounded-2xl p-4 border border-border-dark flex flex-col gap-4 transition-all duration-300 border-l-4 ${c.border} animate-in fade-in slide-in-from-bottom-2`;
 
-    // HTML structure similar to original
     el.innerHTML = `
       <div class="flex justify-between items-center">
         <div class="flex items-center gap-1.5">
@@ -128,13 +201,11 @@ function createCard(a: Appointment): HTMLElement {
       <div class="flex flex-col gap-2 actions-area"></div>
     `;
 
-    // Copy Phone Logic
     el.querySelector('.btn-copy-phone')!.addEventListener('click', (e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(a.client_phone).then(() => showToast('Скопировано'));
     });
 
-    // Actions
     const actions = el.querySelector('.actions-area')!;
     const btnBox = document.createElement('div');
     btnBox.className = 'flex gap-2';
@@ -162,7 +233,6 @@ function createCard(a: Appointment): HTMLElement {
 
     if (a.status === 'pending' || a.status === 'confirmed') actions.appendChild(btnBox);
 
-    // Message Button
     const msgBtn = document.createElement('button');
     msgBtn.className = 'w-full py-2.5 rounded-xl bg-background-dark text-text-secondary font-bold text-xs border border-border-dark flex items-center justify-center gap-2 hover:bg-surface-dark hover:text-white transition-all active:scale-[0.98]';
     const isTg = !!a.client_username;
@@ -178,7 +248,7 @@ function createCard(a: Appointment): HTMLElement {
 
 async function updateStatus(id: number, action: 'confirm' | 'cancel' | 'complete') {
     if (action !== 'confirm' && !(await showConfirm(action === 'cancel' ? 'Отменить запись?' : 'Завершить услугу?'))) {
-        renderList(); // Reset buttons state
+        renderList();
         return;
     }
     try {

@@ -1,6 +1,7 @@
-import { $, getVal, showToast } from '../../core/dom'; // Assuming these exist in dom.ts, showToast in ui/toast.ts
-import { apiFetch } from '../../core/api'; // Assuming apiFetch exists in core/api.ts
-import { WorkingHour } from '../../types'; // Assuming WorkingHour type exists
+import { $ } from '../../core/dom';
+import { apiFetch } from '../../core/api';
+import { showToast } from '../../ui/toast'; // FIX: Правильный путь
+import { WorkingHour } from '../../types';
 
 export async function loadSchedule() {
     const container = $('schedule-container');
@@ -51,30 +52,33 @@ export async function loadSchedule() {
 }
 
 export function initScheduleHandlers() {
-    $('btn-save-schedule')!.onclick = async (e) => {
-        const btn = e.target as HTMLButtonElement;
-        btn.disabled = true;
-        const payload: any[] = [];
-        const rows = document.querySelectorAll('#schedule-container .group');
+    const btn = $('btn-save-schedule');
+    if (btn) {
+        btn.onclick = async (e) => {
+            const button = e.target as HTMLButtonElement;
+            button.disabled = true;
+            const payload: any[] = [];
+            const rows = document.querySelectorAll('#schedule-container .group');
 
-        rows.forEach(row => {
-            const cb = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
-            if (cb.checked) {
-                const start = (row.querySelector('.time-start') as HTMLInputElement).value;
-                const end = (row.querySelector('.time-end') as HTMLInputElement).value;
-                payload.push({
-                    day_of_week: parseInt(cb.dataset.day!),
-                    start_time: start,
-                    end_time: end,
-                    slot_minutes: 30
-                });
-            }
-        });
+            rows.forEach(row => {
+                const cb = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+                if (cb.checked) {
+                    const start = (row.querySelector('.time-start') as HTMLInputElement).value;
+                    const end = (row.querySelector('.time-end') as HTMLInputElement).value;
+                    payload.push({
+                        day_of_week: parseInt(cb.dataset.day!),
+                        start_time: start,
+                        end_time: end,
+                        slot_minutes: 30
+                    });
+                }
+            });
 
-        try {
-            await apiFetch('/me/working-hours', { method: 'POST', body: JSON.stringify(payload) });
-            showToast('График сохранен');
-        } catch { showToast('Ошибка сохранения', 'error'); }
-        btn.disabled = false;
-    };
+            try {
+                await apiFetch('/me/working-hours', { method: 'POST', body: JSON.stringify(payload) });
+                showToast('График сохранен');
+            } catch { showToast('Ошибка сохранения', 'error'); }
+            button.disabled = false;
+        };
+    }
 }

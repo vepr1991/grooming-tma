@@ -1,6 +1,8 @@
 import { $ } from '../core/dom';
-import { apiFetch, BASE_URL } from '../core/api';
+import { BASE_URL } from '../core/api';
 import { Telegram } from '../core/tg';
+
+// ... остальной код без изменений ...
 
 export function renderCarousel(
     trackId: string,

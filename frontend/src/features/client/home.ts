@@ -1,7 +1,9 @@
-import { $, setText, show, hide, toggle } from '../../core/dom';
+import { $, setText, show, hide } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { renderCarousel } from '../../ui/carousel';
 import { Service, MasterProfile } from '../../types';
+
+// ... остальной код без изменений ...
 
 export async function loadMasterInfo(masterId: string) {
     try {
