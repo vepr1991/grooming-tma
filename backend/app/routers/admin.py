@@ -8,10 +8,11 @@ from app.auth import validate_telegram_data
 from app.db import supabase
 from app.utils import send_telegram_message
 from app.schemas.master import (
-    MasterProfileUpdate, ServiceCreate, WorkingHourItem
+    MasterProfileUpdate, ServiceCreate, ServiceUpdate, WorkingHourItem
 )
 
 router = APIRouter(prefix="/me", tags=["Admin"])
+
 
 @router.get("")
 async def get_my_profile(user=Depends(validate_telegram_data)):
@@ -28,49 +29,43 @@ async def get_my_profile(user=Depends(validate_telegram_data)):
         return {"user": user, "profile": res.data[0]}
     return {"user": user, "profile": res.data[0]}
 
+
 @router.patch("/profile")
 async def update_profile(data: MasterProfileUpdate, user=Depends(validate_telegram_data)):
     tg_id = user['id']
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
-    
-    # ЛОГИКА ФОТО: Если пришел массив photos, обновляем аватарку первым фото
+
     if 'photos' in update_data:
         if update_data['photos'] and len(update_data['photos']) > 0:
             update_data['avatar_url'] = update_data['photos'][0]
         else:
-            update_data['avatar_url'] = None # Если удалили все фото
+            update_data['avatar_url'] = None
 
     res = supabase.table("masters").update(update_data).eq("telegram_id", tg_id).execute()
     return res.data
 
-# --- НОВЫЙ РОУТ ЗАГРУЗКИ ФОТО ---
+
 @router.post("/upload-photo")
 async def upload_photo(file: UploadFile = File(...), user=Depends(validate_telegram_data)):
-    """Загрузка фото в Supabase Storage (бакет 'avatars')"""
-    
-    # 1. Генерируем путь: telegram_id/uuid.jpg
     file_ext = file.filename.split(".")[-1]
     file_path = f"{user['id']}/{uuid.uuid4()}.{file_ext}"
-    bucket_name = "avatars" # Убедитесь, что такой бакет есть в Supabase!
+    bucket_name = "avatars"
 
     try:
         file_bytes = await file.read()
-        
-        # 2. Загружаем
         supabase.storage.from_(bucket_name).upload(
             path=file_path,
             file=file_bytes,
             file_options={"content-type": file.content_type}
         )
-        
-        # 3. Получаем Public URL
         public_url = supabase.storage.from_(bucket_name).get_public_url(file_path)
-        
         return {"url": public_url}
-        
     except Exception as e:
         print(f"Upload error: {e}")
         raise HTTPException(status_code=500, detail="Failed to upload photo")
+
+
+# --- Services ---
 
 @router.get("/services")
 async def get_services(user=Depends(validate_telegram_data)):
@@ -78,8 +73,10 @@ async def get_services(user=Depends(validate_telegram_data)):
         .select("*") \
         .eq("master_telegram_id", user['id']) \
         .eq("is_active", True) \
+        .order("id") \
         .execute()
     return res.data
+
 
 @router.post("/services")
 async def create_service(srv: ServiceCreate, user=Depends(validate_telegram_data)):
@@ -88,6 +85,29 @@ async def create_service(srv: ServiceCreate, user=Depends(validate_telegram_data
     data['is_active'] = True
     res = supabase.table("services").insert(data).execute()
     return res.data
+
+
+@router.patch("/services/{service_id}")
+async def update_service(
+        service_id: int,
+        srv: ServiceUpdate,
+        user=Depends(validate_telegram_data)
+):
+    update_data = srv.model_dump(exclude_unset=True)
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No data provided")
+
+    res = supabase.table("services").update(update_data) \
+        .eq("id", service_id) \
+        .eq("master_telegram_id", user['id']) \
+        .execute()
+
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Service not found or access denied")
+
+    return res.data[0]
+
 
 @router.delete("/services/{sid}")
 async def delete_service(sid: int, user=Depends(validate_telegram_data)):
@@ -98,10 +118,14 @@ async def delete_service(sid: int, user=Depends(validate_telegram_data)):
         .execute()
     return {"status": "archived"}
 
+
+# --- Working Hours ---
+
 @router.get("/working-hours")
 async def get_hours(user=Depends(validate_telegram_data)):
     res = supabase.table("working_hours").select("*").eq("master_telegram_id", user['id']).execute()
     return res.data
+
 
 @router.post("/working-hours")
 async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram_data)):
@@ -115,6 +139,9 @@ async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram
         supabase.table("working_hours").insert(data_list).execute()
     return {"status": "updated"}
 
+
+# --- Appointments ---
+
 @router.get("/appointments")
 async def get_my_appointments(user=Depends(validate_telegram_data)):
     res = supabase.table("appointments") \
@@ -123,6 +150,7 @@ async def get_my_appointments(user=Depends(validate_telegram_data)):
         .order("starts_at", desc=False) \
         .execute()
     return res.data
+
 
 @router.post("/appointments/{aid}/confirm")
 async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
@@ -133,7 +161,7 @@ async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
         try:
             master_res = supabase.table("masters").select("timezone").eq("telegram_id", user['id']).single().execute()
             tz_name = master_res.data.get('timezone', 'Asia/Almaty') if master_res.data else 'Asia/Almaty'
-            
+
             details = supabase.table("appointments").select("*, services(name)").eq("id", aid).single().execute()
             appt = details.data
 
@@ -161,6 +189,16 @@ async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
             print(f"Notify error: {e}")
     return res.data
 
+
+# --- НОВОЕ: Завершение записи ---
+@router.post("/appointments/{aid}/complete")
+async def complete_appointment(aid: int, user=Depends(validate_telegram_data)):
+    res = supabase.table("appointments").update({"status": "completed"}) \
+        .eq("id", aid).eq("master_telegram_id", user['id']).execute()
+    return res.data
+# --------------------------------
+
+
 @router.post("/appointments/{aid}/cancel")
 async def cancel_appointment(aid: int, user=Depends(validate_telegram_data)):
     res = supabase.table("appointments").update({"status": "cancelled"}) \
@@ -173,7 +211,7 @@ async def cancel_appointment(aid: int, user=Depends(validate_telegram_data)):
 
             details = supabase.table("appointments").select("*, services(name)").eq("id", aid).single().execute()
             appt = details.data
-            
+
             if appt and appt.get('client_telegram_id'):
                 service_name = appt.get('services', {}).get('name', 'Груминг') if appt.get('services') else "Груминг"
                 pet_name = appt.get('pet_name', 'Не указано')
