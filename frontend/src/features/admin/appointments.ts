@@ -8,7 +8,6 @@ import { Telegram } from '../../core/tg';
 
 let appointmentsCache: Appointment[] = [];
 let selectedDate = new Date();
-// Используем локальную переменную viewDate для навигации по календарю
 let viewDate = new Date();
 let activeTab: Appointment['status'] = 'pending';
 
@@ -54,13 +53,14 @@ function renderTabs() {
 function changeMonth(offset: number) {
     viewDate.setMonth(viewDate.getMonth() + offset);
     renderCalendar();
+    renderList(); // FIX: Обновляем список при смене месяца
 }
 
 function renderCalendar() {
     const container = $('calendar-container');
     if (!container) return;
 
-    // FIX: Используем busyDates для отрисовки точек
+    // Точки только для активных записей
     const busyDates = new Set(appointmentsCache
         .filter(a => ['pending', 'confirmed'].includes(a.status))
         .map(a => a.starts_at.split('T')[0]));
@@ -68,7 +68,6 @@ function renderCalendar() {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
 
-    // FIX: Используем daysInMonth
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     let firstDay = new Date(year, month, 1).getDay() - 1;
     if (firstDay === -1) firstDay = 6;
@@ -99,7 +98,6 @@ function renderCalendar() {
         const currentDate = new Date(year, month, i);
         const currentStr = currentDate.toDateString();
 
-        // Формируем ISO дату "YYYY-MM-DD" локально
         const y = currentDate.getFullYear();
         const m = String(currentDate.getMonth() + 1).padStart(2, '0');
         const d = String(currentDate.getDate()).padStart(2, '0');
@@ -123,8 +121,10 @@ function renderCalendar() {
     html += `</div></div>`;
     container.innerHTML = html;
 
-    $('cal-prev')!.onclick = () => changeMonth(-1);
-    $('cal-next')!.onclick = () => changeMonth(1);
+    const btnPrev = document.getElementById('cal-prev');
+    const btnNext = document.getElementById('cal-next');
+    if (btnPrev) btnPrev.onclick = () => changeMonth(-1);
+    if (btnNext) btnNext.onclick = () => changeMonth(1);
 
     container.querySelectorAll('.day-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -141,14 +141,28 @@ function renderList() {
     if (!list) return;
     list.innerHTML = '';
 
-    // Формируем строку YYYY-MM-DD с учетом локального времени (важно, чтобы не сдвигалось на UTC)
-    const y = selectedDate.getFullYear();
-    const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    const d = String(selectedDate.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${d}`;
+    let filtered: Appointment[] = [];
 
-    // Фильтруем записи: дата должна начинаться с dateStr (ISO формат) И статус должен совпадать
-    const filtered = appointmentsCache.filter(a => a.starts_at.startsWith(dateStr) && a.status === activeTab);
+    if (activeTab === 'completed' || activeTab === 'cancelled') {
+        // FIX: Показываем записи за ВЕСЬ МЕСЯЦ (viewDate)
+        const y = viewDate.getFullYear();
+        const m = String(viewDate.getMonth() + 1).padStart(2, '0');
+        const monthPrefix = `${y}-${m}`;
+        filtered = appointmentsCache.filter(a => a.starts_at.startsWith(monthPrefix) && a.status === activeTab);
+
+        // Сортировка: Сначала новые (история)
+        filtered.sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
+    } else {
+        // Показываем записи за ВЫБРАННЫЙ ДЕНЬ (selectedDate)
+        const y = selectedDate.getFullYear();
+        const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const d = String(selectedDate.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+        filtered = appointmentsCache.filter(a => a.starts_at.startsWith(dateStr) && a.status === activeTab);
+
+        // Сортировка: Сначала ранние (расписание)
+        filtered.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+    }
 
     setText('tab-label', TABS.find(t => t.id === activeTab)?.label || '');
     setText('tab-count', filtered.length.toString());
@@ -163,7 +177,18 @@ function renderList() {
 
 function createCard(a: Appointment): HTMLElement {
     const el = document.createElement('div');
-    const time = new Date(a.starts_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const dateObj = new Date(a.starts_at);
+
+    // FIX: Если список за месяц, добавляем дату (ДД.ММ ЧЧ:ММ)
+    let timeDisplay = '';
+    if (activeTab === 'completed' || activeTab === 'cancelled') {
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const time = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        timeDisplay = `${day}.${month} ${time}`;
+    } else {
+        timeDisplay = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    }
 
     const configs: any = {
         pending: { label: 'ОЖИДАЕТ', color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-l-orange-500' },
@@ -179,7 +204,7 @@ function createCard(a: Appointment): HTMLElement {
       <div class="flex justify-between items-center">
         <div class="flex items-center gap-1.5">
           <span class="w-1.5 h-1.5 rounded-full ${a.status === 'pending' ? 'bg-orange-500 animate-pulse' : c.bg.replace('/10','')}"></span>
-          <span class="text-white font-bold text-xs">${time}</span>
+          <span class="text-white font-bold text-xs">${timeDisplay}</span>
         </div>
         <span class="text-[10px] font-bold px-2 py-0.5 rounded ${c.bg} ${c.color}">${c.label}</span>
       </div>
@@ -201,10 +226,13 @@ function createCard(a: Appointment): HTMLElement {
       <div class="flex flex-col gap-2 actions-area"></div>
     `;
 
-    el.querySelector('.btn-copy-phone')!.addEventListener('click', (e) => {
-        e.stopPropagation();
-        navigator.clipboard.writeText(a.client_phone).then(() => showToast('Скопировано'));
-    });
+    const copyBtn = el.querySelector('.btn-copy-phone') as HTMLElement;
+    if (copyBtn) {
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(a.client_phone).then(() => showToast('Скопировано'));
+        });
+    }
 
     const actions = el.querySelector('.actions-area')!;
     const btnBox = document.createElement('div');

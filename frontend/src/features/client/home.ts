@@ -1,9 +1,8 @@
 import { $, setText, show, hide } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { renderCarousel } from '../../ui/carousel';
+import { getClientServiceSkeleton } from '../../ui/skeletons'; // NEW
 import { Service, MasterProfile } from '../../types';
-
-// ... остальной код без изменений ...
 
 export async function loadMasterInfo(masterId: string) {
     try {
@@ -16,7 +15,7 @@ export async function loadMasterInfo(masterId: string) {
             if (phoneLink) {
                 show(phoneLink);
                 phoneLink.href = `tel:${data.phone}`;
-                phoneLink.classList.add('flex'); // Восстанавливаем flex, так как show просто убирает hidden
+                phoneLink.classList.add('flex');
                 setText('hero-phone-text', data.phone);
             }
         }
@@ -24,7 +23,6 @@ export async function loadMasterInfo(masterId: string) {
         const descEl = $('hero-desc');
         if (descEl) {
             setText('hero-desc', data.description || 'Нет описания');
-            // Простая логика "Читать полностью"
             if (descEl.scrollHeight > descEl.clientHeight) {
                 show('btn-expand-desc');
                 $('btn-expand-desc')!.onclick = function() {
@@ -35,7 +33,6 @@ export async function loadMasterInfo(masterId: string) {
             }
         }
 
-        // Используем наш общий UI компонент
         let photos = data.photos || [];
         if (photos.length === 0 && data.avatar_url) photos = [data.avatar_url];
 
@@ -43,7 +40,7 @@ export async function loadMasterInfo(masterId: string) {
 
         if (data.timezone) checkOpenStatus(data.timezone);
 
-        return data; // Возвращаем для использования timezone в других модулях
+        return data;
     } catch (e) {
         setText('hero-title', 'Мастер не найден');
         setText('hero-status', 'Ошибка');
@@ -80,6 +77,9 @@ export async function loadServices(masterId: string, onSelect: (s: Service) => v
     const list = $('services-list');
     if (!list) return;
 
+    // NEW: Показываем скелетон перед запросом
+    list.innerHTML = getClientServiceSkeleton(4);
+
     try {
         const services = await apiFetch<Service[]>(`/masters/${masterId}/services`);
         list.innerHTML = '';
@@ -90,7 +90,6 @@ export async function loadServices(masterId: string, onSelect: (s: Service) => v
         }
 
         services.forEach(srv => {
-            // Создаем карточку через DOM API (безопаснее innerHTML)
             const card = document.createElement('div');
             card.className = 'w-full bg-surface border border-border rounded-xl overflow-hidden shadow-sm transition-all mb-3';
 
@@ -114,7 +113,7 @@ export async function loadServices(masterId: string, onSelect: (s: Service) => v
             const descP = document.createElement('p');
             descP.className = 'text-sm text-secondary py-3 leading-relaxed';
             descP.textContent = srv.description || '';
-            if (!srv.description) descP.className = 'h-2'; // spacer
+            if (!srv.description) descP.className = 'h-2';
 
             const btn = document.createElement('button');
             btn.className = 'w-full bg-primary text-white font-bold py-3 rounded-xl active:scale-[0.98] transition-all shadow-lg shadow-primary/20 mt-2';
@@ -127,7 +126,6 @@ export async function loadServices(masterId: string, onSelect: (s: Service) => v
             body.appendChild(descP);
             body.appendChild(btn);
 
-            // Accordion logic
             const chevron = header.querySelector('.chevron') as HTMLElement;
             header.onclick = () => {
                 const isHidden = body.classList.toggle('hidden');

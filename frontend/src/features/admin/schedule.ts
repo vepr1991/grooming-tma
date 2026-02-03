@@ -1,14 +1,20 @@
 import { $ } from '../../core/dom';
 import { apiFetch } from '../../core/api';
-import { showToast } from '../../ui/toast'; // FIX: Правильный путь
+import { showToast } from '../../ui/toast';
+import { getScheduleSkeleton } from '../../ui/skeletons'; // NEW
 import { WorkingHour } from '../../types';
 
 export async function loadSchedule() {
     const container = $('schedule-container');
     if (!container) return;
-    container.innerHTML = '';
+
+    // NEW: Скелетон
+    container.innerHTML = getScheduleSkeleton();
+
     try {
         const hours = await apiFetch<WorkingHour[]>('/me/working-hours');
+        container.innerHTML = ''; // Очищаем скелетон
+
         const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
         days.forEach((dayName, idx) => {
