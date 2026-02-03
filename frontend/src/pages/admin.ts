@@ -1,14 +1,15 @@
 /**
  * (c) 2026 Vladimir Kovalenko
  */
-import { apiFetch, BASE_URL } from '../core/api';
+// FIX 1: Убрали BASE_URL из импорта, так как он не используется
+import { apiFetch } from '../core/api';
 import { initTelegram, Telegram } from '../core/tg';
 
 declare const IMask: any;
 
 initTelegram();
 
-let masterTimezone = 'Asia/Almaty'; 
+let masterTimezone = 'Asia/Almaty';
 
 // --- ИКОНКИ ---
 const ICONS = {
@@ -73,9 +74,7 @@ function showConfirm(message: string): Promise<boolean> {
     });
 }
 
-// ... (Profile, Services, Schedule - БЕЗ ИЗМЕНЕНИЙ, оставляем как есть) ...
-// В целях экономии места я пропускаю части Profile, Services, Schedule, так как они работают.
-// Вставьте их сюда из предыдущего рабочего кода.
+// === ПРОФИЛЬ ===
 const els = {
     name: document.getElementById('salon-name') as HTMLInputElement,
     address: document.getElementById('address') as HTMLInputElement,
@@ -93,22 +92,379 @@ const els = {
     regAddress: document.getElementById('reg-address') as HTMLInputElement,
     btnFinishReg: document.getElementById('btn-finish-reg') as HTMLButtonElement,
 };
-// ... (Функции loadProfile, renderCarousel и т.д.) ...
+
 let currentPhotos: string[] = [];
+// FIX 2: Убеждаемся, что originalData используется (см. btnCancel.onclick ниже)
 let originalData: any = {};
-// ... (Функции loadServices, toggleServiceForm и т.д.) ...
-// ... (Функции loadSchedule и т.д.) ...
-async function loadProfile() { try { const data = await apiFetch('/me'); if(!data.profile.salon_name && els.onboardingScreen) els.onboardingScreen.classList.remove('hidden'); if(data.profile) { els.name.value=data.profile.salon_name||''; els.address.value=data.profile.address||''; if(data.profile.phone)els.phone.value=data.profile.phone; els.desc.value=data.profile.description||''; currentPhotos=data.profile.photos||[]; if(currentPhotos.length===0&&data.profile.avatar_url)currentPhotos.push(data.profile.avatar_url); renderCarousel(); if(data.profile.timezone)masterTimezone=data.profile.timezone; } } catch(e){console.error(e);} }
-// ... (Здесь должен быть весь ваш код для вкладок Profile, Services, Schedule) ...
-function renderCarousel() { if(!els.carouselTrack) return; els.carouselTrack.innerHTML=''; currentPhotos.forEach(p => { const d=document.createElement('div'); d.className='flex-shrink-0 w-full h-full snap-center'; d.innerHTML=`<img src="${p}" class="w-full h-full object-cover">`; els.carouselTrack.appendChild(d); }); }
-async function loadServices() { /* ... */ }
-async function loadSchedule() { /* ... */ }
 
+function renderCarousel() {
+    if (!els.carouselTrack) return;
+    els.carouselTrack.innerHTML = '';
+    const isEditMode = !els.editActions.classList.contains('hidden');
+
+    currentPhotos.forEach((photo, index) => {
+        const slide = document.createElement('div');
+        slide.className = 'flex-shrink-0 w-full h-full snap-center relative group';
+        slide.innerHTML = `
+            <img src="${photo}" alt="Photo ${index + 1}" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+        `;
+        if (isEditMode) {
+            const delBtn = document.createElement('button');
+            delBtn.className = 'absolute top-4 right-4 p-2 bg-black/60 rounded-full text-white backdrop-blur-sm hover:bg-red-500/80 transition-all';
+            delBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+            delBtn.onclick = (e) => { e.stopPropagation(); removePhoto(index); };
+            slide.appendChild(delBtn);
+        }
+        els.carouselTrack.appendChild(slide);
+    });
+
+    if (isEditMode && currentPhotos.length < 5) {
+        const addSlide = document.createElement('div');
+        addSlide.className = 'flex-shrink-0 w-full h-full snap-center bg-surface-dark flex items-center justify-center cursor-pointer hover:brightness-110 transition-colors border-2 border-dashed border-primary/30';
+        addSlide.onclick = () => els.photoInput.click();
+        addSlide.innerHTML = `
+            <div class="flex flex-col items-center gap-2 text-primary">
+                <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                </div>
+                <span class="text-sm font-medium">Добавить</span>
+            </div>
+        `;
+        els.carouselTrack.appendChild(addSlide);
+    }
+    else if (currentPhotos.length === 0) {
+        els.carouselTrack.innerHTML = `
+            <div class="flex-shrink-0 w-full h-full snap-center bg-surface-dark flex flex-col items-center justify-center text-text-secondary/50">
+                <span class="material-symbols-outlined text-4xl mb-2 opacity-50">image_not_supported</span>
+                <span class="text-xs">Нет фотографий</span>
+            </div>`;
+    }
+    renderIndicators(0);
+}
+
+function renderIndicators(activeIndex: number) {
+    if (!els.carouselIndicators) return;
+    els.carouselIndicators.innerHTML = '';
+    const isEditMode = !els.editActions.classList.contains('hidden');
+    let totalSlides = currentPhotos.length;
+    if (isEditMode && currentPhotos.length < 5) totalSlides++;
+    if (totalSlides === 0) totalSlides = 1;
+
+    for (let i = 0; i < totalSlides; i++) {
+        const dot = document.createElement('div');
+        const isActive = i === activeIndex;
+        dot.className = `h-1.5 rounded-full transition-all duration-300 ${isActive ? 'bg-primary w-3' : 'bg-text-secondary/30 w-1.5'}`;
+        els.carouselIndicators.appendChild(dot);
+    }
+}
+
+if (els.carouselTrack) {
+    els.carouselTrack.addEventListener('scroll', () => {
+        const scrollPos = els.carouselTrack.scrollLeft;
+        const width = els.carouselTrack.clientWidth;
+        const index = Math.round(scrollPos / width);
+        renderIndicators(index);
+    });
+}
+
+if (els.photoInput) {
+    els.photoInput.onchange = async () => {
+        const file = els.photoInput.files?.[0];
+        if (!file) return;
+        showToast('Загрузка...');
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const response = await fetch(`${BASE_URL}/me/upload-photo`, {
+                method: 'POST',
+                headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData },
+                body: formData
+            });
+            if (!response.ok) throw new Error();
+            const res = await response.json();
+            if (res.url) {
+                currentPhotos.push(res.url);
+                renderCarousel();
+                setTimeout(() => {
+                    els.carouselTrack.scrollTo({ left: els.carouselTrack.scrollWidth, behavior: 'smooth' });
+                }, 100);
+            }
+        } catch (e) { showToast('Ошибка загрузки', 'error'); } finally { els.photoInput.value = ''; }
+    };
+}
+function removePhoto(index: number) { currentPhotos.splice(index, 1); renderCarousel(); }
+function initPhoneMask() { if (els.phone && typeof IMask !== 'undefined') { IMask(els.phone, { mask: '+{7} (000) 000-00-00', lazy: false }); } }
+initPhoneMask();
+
+function toggleEditMode(enable: boolean) {
+    const inputs = [els.name, els.address, els.phone, els.desc];
+    if (enable) {
+        originalData = {
+            name: els.name.value, address: els.address.value, phone: els.phone.value,
+            desc: els.desc.value, photos: [...currentPhotos]
+        };
+        inputs.forEach(inp => inp.removeAttribute('readonly'));
+        els.btnEditMode.classList.add('hidden');
+        els.editActions.classList.remove('hidden');
+        els.editActions.classList.add('flex');
+    } else {
+        inputs.forEach(inp => inp.setAttribute('readonly', 'true'));
+        els.editActions.classList.add('hidden');
+        els.editActions.classList.remove('flex');
+        els.btnEditMode.classList.remove('hidden');
+    }
+    renderCarousel();
+}
+if(els.btnEditMode) els.btnEditMode.onclick = () => toggleEditMode(true);
+
+// FIX 2: Здесь мы используем originalData
+if(els.btnCancel) els.btnCancel.onclick = () => {
+    els.name.value = originalData.name;
+    els.address.value = originalData.address;
+    els.phone.value = originalData.phone;
+    els.desc.value = originalData.desc;
+    currentPhotos = originalData.photos || [];
+    toggleEditMode(false);
+};
+
+if(els.btnSave) els.btnSave.onclick = async () => {
+    els.btnSave.disabled = true; const originalText = els.btnSave.innerHTML; els.btnSave.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>';
+    try {
+        await apiFetch('/me/profile', { method: 'PATCH', body: JSON.stringify({ salon_name: els.name.value, address: els.address.value, phone: els.phone.value, description: els.desc.value, photos: currentPhotos }) });
+        showToast('Профиль сохранен'); toggleEditMode(false);
+    } catch (e) { showToast('Ошибка сохранения', 'error'); } finally { els.btnSave.innerHTML = originalText; els.btnSave.disabled = false; }
+};
+async function loadProfile() {
+    try {
+        const data = await apiFetch('/me');
+        if (!data.profile.salon_name && els.onboardingScreen) els.onboardingScreen.classList.remove('hidden');
+        if (data.profile) {
+            els.name.value = data.profile.salon_name || ''; els.address.value = data.profile.address || '';
+            if (data.profile.phone) { els.phone.value = data.profile.phone; if ((els.phone as any)._imask) (els.phone as any)._imask.updateValue(); }
+            els.desc.value = data.profile.description || '';
+            currentPhotos = data.profile.photos || [];
+            if (currentPhotos.length === 0 && data.profile.avatar_url) currentPhotos.push(data.profile.avatar_url);
+            renderCarousel();
+            if (data.profile.timezone) masterTimezone = data.profile.timezone;
+        }
+    } catch (e) { console.error(e); }
+}
+if (els.btnFinishReg) {
+    els.btnFinishReg.onclick = async () => {
+        const name = els.regName.value.trim(); const address = els.regAddress.value.trim();
+        if (!name) return showToast('Введите название', 'error');
+        els.btnFinishReg.disabled = true; els.btnFinishReg.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span>';
+        try {
+            await apiFetch('/me/profile', { method: 'PATCH', body: JSON.stringify({ salon_name: name, address: address }) });
+            els.name.value = name; els.address.value = address;
+            els.onboardingScreen.style.opacity = '0'; setTimeout(() => els.onboardingScreen.classList.add('hidden'), 500);
+            showToast('Салон создан! Теперь добавьте услуги.'); document.querySelector<HTMLButtonElement>('[onclick*="services"]')?.click();
+        } catch (e) { showToast('Ошибка создания', 'error'); els.btnFinishReg.disabled = false; els.btnFinishReg.innerHTML = 'Создать салон <span class="material-symbols-outlined">arrow_forward</span>'; }
+    };
+}
+
+// === УСЛУГИ ===
+const srvList = document.getElementById('services-list')!;
+const addServiceForm = document.getElementById('add-service-form') as HTMLElement;
+const btnToggleAdd = document.getElementById('btn-toggle-add-service') as HTMLButtonElement;
+const btnCancelAdd = document.getElementById('btn-cancel-service') as HTMLButtonElement;
+const btnSaveService = document.getElementById('btn-save-service') as HTMLButtonElement;
+
+const inpName = document.getElementById('new-srv-name') as HTMLInputElement;
+const inpDesc = document.getElementById('new-srv-desc') as HTMLTextAreaElement;
+const inpPrice = document.getElementById('new-srv-price') as HTMLInputElement;
+const inpDur = document.getElementById('new-srv-dur') as HTMLInputElement;
+
+let isEditing = false;
+let editingServiceId: number | null = null;
+
+function toggleServiceForm(show: boolean, isEditMode = false) {
+    if (show) {
+        addServiceForm.classList.remove('hidden');
+        addServiceForm.classList.add('flex');
+        btnToggleAdd.classList.add('hidden');
+        btnSaveService.textContent = isEditMode ? 'Сохранить изменения' : 'Создать';
+        if (!isEditMode) {
+            inpName.value = ''; inpDesc.value = ''; inpPrice.value = ''; inpDur.value = '60';
+            inpName.focus();
+        }
+    } else {
+        addServiceForm.classList.add('hidden');
+        addServiceForm.classList.remove('flex');
+        btnToggleAdd.classList.remove('hidden');
+        isEditing = false;
+        editingServiceId = null;
+    }
+}
+
+function editService(service: any) {
+    isEditing = true;
+    editingServiceId = service.id;
+    inpName.value = service.name;
+    inpDesc.value = service.description || '';
+    inpPrice.value = service.price;
+    inpDur.value = service.duration_min;
+    toggleServiceForm(true, true);
+    addServiceForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+if(btnToggleAdd) btnToggleAdd.onclick = () => toggleServiceForm(true, false);
+if(btnCancelAdd) btnCancelAdd.onclick = () => toggleServiceForm(false);
+
+async function loadServices() {
+    try {
+        const services = await apiFetch('/me/services');
+        srvList.innerHTML = '';
+        if (services.length === 0) { srvList.innerHTML = '<div class="text-center text-text-secondary p-4 opacity-50">Список услуг пуст</div>'; return; }
+
+        services.forEach((s: any) => {
+            const card = document.createElement('div');
+            card.className = 'w-full bg-surface-dark border border-border-dark/50 rounded-xl overflow-hidden transition-all mb-3';
+
+            const header = document.createElement('div');
+            header.className = 'p-4 flex justify-between items-center transition-colors min-h-[72px]';
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'flex flex-col gap-1 flex-1 min-w-0';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'text-white font-bold text-base leading-tight break-words';
+            nameSpan.textContent = s.name;
+
+            const detailsSpan = document.createElement('span');
+            detailsSpan.className = 'text-primary text-sm font-bold';
+            detailsSpan.textContent = `${s.price} ₸ • ${s.duration_min} мин`;
+
+            infoDiv.appendChild(nameSpan); infoDiv.appendChild(detailsSpan);
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'flex items-center gap-1 shrink-0 ml-3';
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'text-text-secondary/40 hover:text-primary p-2 rounded-full hover:bg-black/5 transition-colors z-20';
+            editBtn.innerHTML = '<span class="material-symbols-outlined">edit</span>';
+            editBtn.onclick = (e) => { e.stopPropagation(); editService(s); };
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'text-text-secondary/40 hover:text-error p-2 rounded-full hover:bg-black/5 transition-colors z-20';
+            delBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
+            delBtn.onclick = async (e) => { e.stopPropagation(); if (await showConfirm('Удалить эту услугу?')) { deleteService(s.id); } };
+
+            actionsDiv.appendChild(editBtn);
+            actionsDiv.appendChild(delBtn);
+
+            let chevron: HTMLElement | null = null;
+            const hasDescription = s.description && s.description.trim() !== '';
+            if (hasDescription) {
+                const arrowBtn = document.createElement('div'); arrowBtn.className = 'p-1 text-text-secondary/50';
+                chevron = document.createElement('span'); chevron.className = 'material-symbols-outlined transition-transform duration-200 block'; chevron.textContent = 'expand_more';
+                arrowBtn.appendChild(chevron); actionsDiv.appendChild(arrowBtn); header.classList.add('cursor-pointer', 'hover:bg-black/5');
+            }
+            header.appendChild(infoDiv); header.appendChild(actionsDiv); card.appendChild(header);
+
+            if (hasDescription) {
+                const body = document.createElement('div');
+                body.className = 'hidden px-4 pb-4 pt-3 text-sm text-text-secondary/80 border-t border-border-dark/30 bg-black/5 break-words whitespace-normal w-full leading-relaxed';
+                body.textContent = s.description; card.appendChild(body);
+                header.onclick = () => {
+                    const isHidden = body.classList.contains('hidden');
+                    if (isHidden) { body.classList.remove('hidden'); body.animate([{ opacity: 0, transform: 'translateY(-5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 200, easing: 'ease-out' }); if (chevron) chevron.style.transform = 'rotate(180deg)'; }
+                    else { body.classList.add('hidden'); if (chevron) chevron.style.transform = 'rotate(0deg)'; }
+                };
+            }
+            srvList.appendChild(card);
+        });
+    } catch (e) { srvList.innerHTML = '<div class="text-center text-text-secondary p-4">Ошибка загрузки услуг</div>'; }
+}
+
+if(btnSaveService) btnSaveService.onclick = async () => {
+    if (!inpName.value || !inpPrice.value) { showToast('Введите название и цену', 'error'); return; }
+    btnSaveService.disabled = true;
+    const originalText = btnSaveService.textContent;
+    btnSaveService.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>';
+
+    try {
+        const payload = {
+            name: inpName.value,
+            description: inpDesc.value,
+            price: parseFloat(inpPrice.value),
+            duration_min: parseInt(inpDur.value) || 60
+        };
+
+        if (isEditing && editingServiceId) {
+            await apiFetch(`/me/services/${editingServiceId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+            showToast('Услуга обновлена');
+        } else {
+            await apiFetch('/me/services', { method: 'POST', body: JSON.stringify(payload) });
+            showToast('Услуга добавлена');
+        }
+        await loadServices();
+        toggleServiceForm(false);
+    } catch(e) {
+        showToast('Ошибка сохранения', 'error');
+    } finally {
+        btnSaveService.disabled = false;
+        btnSaveService.textContent = originalText;
+    }
+};
+async function deleteService(id: number) { try { await apiFetch(`/me/services/${id}`, { method: 'DELETE' }); loadServices(); showToast('Услуга удалена'); } catch (e) { showToast('Ошибка удаления', 'error'); } }
+
+// === ГРАФИК ===
+const scheduleContainer = document.getElementById('schedule-container')!;
+const btnSaveSchedule = document.getElementById('btn-save-schedule') as HTMLButtonElement;
+const daysMap = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+
+async function loadSchedule() { scheduleContainer.innerHTML = ''; try { const existing = await apiFetch('/me/working-hours'); renderScheduleForm(existing); } catch (e) { console.error(e); } }
+
+function renderScheduleForm(existingData: any[]) {
+    scheduleContainer.innerHTML = '';
+    for (let i = 1; i <= 7; i++) {
+        const dayData = existingData.find((d: any) => d.day_of_week === i);
+        const isActive = !!dayData;
+        const row = document.createElement('div');
+        row.className = `group flex items-center gap-3 bg-background-dark px-4 py-4 min-h-[64px] hover:bg-surface-dark transition-colors border-b border-border-dark/30 last:border-0 ${!isActive ? 'opacity-50' : ''}`;
+
+        const leftSide = document.createElement('div'); leftSide.className = 'flex items-center gap-3 flex-1 min-w-0';
+        const checkWrap = document.createElement('div'); checkWrap.className = 'flex size-6 items-center justify-center shrink-0';
+        const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.className = 'h-5 w-5 rounded border-border-dark border-2 bg-transparent text-primary checked:bg-primary focus:ring-0 cursor-pointer transition-all';
+        checkbox.dataset.day = i.toString(); checkbox.checked = isActive; checkWrap.appendChild(checkbox);
+        const label = document.createElement('p'); label.className = `text-white text-base font-medium truncate transition-all ${!isActive ? 'line-through decoration-text-secondary text-text-secondary' : ''}`;
+        label.textContent = daysMap[i - 1]; leftSide.appendChild(checkWrap); leftSide.appendChild(label);
+
+        const settingsDiv = document.createElement('div'); settingsDiv.className = `flex items-center gap-2 shrink-0 transition-all ${!isActive ? 'pointer-events-none grayscale opacity-50' : ''}`;
+        const createTimeInput = (val: string, cls: string) => {
+            const inp = document.createElement('input'); inp.type = 'time';
+            inp.className = `${cls} bg-surface-dark border border-border-dark/50 text-white text-sm font-semibold px-2 py-1.5 rounded-lg w-[76px] text-center focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all`;
+            inp.value = val; return inp;
+        };
+        const timeStart = createTimeInput(dayData?.start_time?.slice(0, 5) || '09:00', 'time-start');
+        const sep = document.createElement('span'); sep.className = 'text-text-secondary font-medium'; sep.textContent = '-';
+        const timeEnd = createTimeInput(dayData?.end_time?.slice(0, 5) || '18:00', 'time-end');
+        settingsDiv.appendChild(timeStart); settingsDiv.appendChild(sep); settingsDiv.appendChild(timeEnd);
+
+        checkbox.onchange = () => {
+            if (checkbox.checked) { row.classList.remove('opacity-50'); settingsDiv.classList.remove('pointer-events-none', 'grayscale', 'opacity-50'); label.classList.remove('line-through', 'decoration-text-secondary', 'text-text-secondary'); }
+            else { row.classList.add('opacity-50'); settingsDiv.classList.add('pointer-events-none', 'grayscale', 'opacity-50'); label.classList.add('line-through', 'decoration-text-secondary', 'text-text-secondary'); }
+        };
+        row.appendChild(leftSide); row.appendChild(settingsDiv); scheduleContainer.appendChild(row);
+    }
+}
+if(btnSaveSchedule) btnSaveSchedule.onclick = async () => {
+    btnSaveSchedule.disabled = true; const originalContent = btnSaveSchedule.innerHTML; btnSaveSchedule.textContent = ''; const spinner = document.createElement('span'); spinner.className = 'material-symbols-outlined animate-spin text-[20px]'; spinner.textContent = 'progress_activity'; btnSaveSchedule.appendChild(spinner);
+    const payload: any[] = []; const slotMin = 30; const checkboxes = document.querySelectorAll('#schedule-container input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+    checkboxes.forEach((cb) => {
+        if (cb.checked) {
+            const row = cb.closest('.group');
+            if (row) { const dayOfWeek = parseInt(cb.dataset.day || '0'); const startInp = row.querySelector('.time-start') as HTMLInputElement; const endInp = row.querySelector('.time-end') as HTMLInputElement; payload.push({ day_of_week: dayOfWeek, start_time: startInp.value, end_time: endInp.value, slot_minutes: slotMin }); }
+        }
+    });
+    try { await apiFetch('/me/working-hours', { method: 'POST', body: JSON.stringify(payload) }); showToast('График сохранен!'); } catch (e) { showToast('Ошибка сохранения', 'error'); } finally { btnSaveSchedule.innerHTML = originalContent; btnSaveSchedule.disabled = false; }
+};
 
 // =========================================================
-// === НОВАЯ ЛОГИКА ЗАПИСЕЙ (APPOINTMENTS) С ТАБАМИ ===
+// === ЗАПИСИ (Appointments) ===
 // =========================================================
-
 const appList = document.getElementById('appointments-list')!;
 const calendarContainer = document.getElementById('calendar-container')!;
 const tabsContainer = document.getElementById('appointment-tabs')!;
