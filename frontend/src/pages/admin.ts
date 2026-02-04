@@ -7,6 +7,7 @@ import { loadProfile, initProfileHandlers } from '../features/admin/profile';
 import { loadServices, initServiceHandlers } from '../features/admin/services';
 import { loadSchedule, initScheduleHandlers } from '../features/admin/schedule';
 import { loadAppointments } from '../features/admin/appointments';
+import { loadAnalytics } from '../features/admin/analytics'; // [NEW] Импорт аналитики
 
 declare const IMask: any;
 
@@ -39,12 +40,19 @@ if (phoneEl && typeof IMask !== 'undefined') {
     });
 
     // Titles
-    const titles: any = { 'profile': 'Данные салона', 'services': 'Услуги', 'schedule': 'График работы', 'appointments': 'Журнал записей' };
+    const titles: any = {
+        'profile': 'Данные салона',
+        'services': 'Услуги',
+        'schedule': 'График работы',
+        'appointments': 'Журнал записей',
+        'analytics': 'Аналитика' // [NEW] Заголовок
+    };
     const titleEl = document.getElementById('header-title');
     if (titleEl) titleEl.innerText = titles[tabName] || 'Админка';
 
     // Data Loading
     if (tabName === 'appointments') loadAppointments();
+    if (tabName === 'analytics') loadAnalytics(); // [NEW] Загрузка данных
 };
 
 // Init Actions
@@ -54,5 +62,3 @@ loadServices();
 initServiceHandlers();
 loadSchedule();
 initScheduleHandlers();
-// Initial load of appointments (optional, usually waits for tab switch)
-// (window as any).loadAppointments = loadAppointments; // for global access if needed
