@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from typing import List
 from datetime import datetime
+from app.utils import send_telegram_message, compress_image
 import pytz
 import uuid
 
