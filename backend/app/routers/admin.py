@@ -49,7 +49,7 @@ async def update_profile(data: MasterProfileUpdate, user=Depends(validate_telegr
 
 @router.post("/upload-photo")
 async def upload_photo(file: UploadFile = File(...), user=Depends(validate_telegram_data)):
-    # 1. Проверка лимитов (Basic vs Pro)
+    # 1. Проверка лимитов
     tg_id = user['id']
     res = supabase.table("masters").select("photos, is_premium").eq("telegram_id", tg_id).single().execute()
     
@@ -60,28 +60,31 @@ async def upload_photo(file: UploadFile = File(...), user=Depends(validate_teleg
     current_photos = master.get('photos') or []
     is_premium = master.get('is_premium', False)
     
-    # Лимит: 10 для Pro, 3 для Basic
-    limit = 10 if is_premium else 3
+    # --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
+    # Лимит для ОТОБРАЖЕНИЯ в профиле: 10 (Pro) или 3 (Basic)
+    display_limit = 10 if is_premium else 3
     
-    if len(current_photos) >= limit:
+    # Лимит для ЗАГРУЗКИ (хранилища): даем запас +5 фото, чтобы можно было "менять" фото без удаления
+    # Например, на Basic можно загрузить до 8 фото, но в профиль сохранятся только 3.
+    upload_limit = display_limit + 5 
+    
+    if len(current_photos) >= upload_limit:
         raise HTTPException(
             status_code=403, 
-            detail=f"Лимит фото превышен ({limit}). Купите Pro версию."
+            detail=f"Временное хранилище переполнено ({upload_limit} фото). Сохраните профиль, чтобы очистить место."
         )
+    # -----------------------
 
     # 2. Сжатие и Загрузка
     try:
-        # Читаем файл
         original_bytes = await file.read()
         
-        # Сжимаем!
+        # Сжимаем
         compressed_bytes = compress_image(original_bytes, max_size=1024, quality=80)
         
-        # Генерируем имя файла (всегда .jpg)
         file_path = f"{user['id']}/{uuid.uuid4()}.jpg"
         bucket_name = "avatars"
 
-        # Загружаем в Supabase с правильным Content-Type
         supabase.storage.from_(bucket_name).upload(
             path=file_path,
             file=compressed_bytes,
