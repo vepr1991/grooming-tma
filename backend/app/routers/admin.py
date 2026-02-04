@@ -19,7 +19,8 @@ router = APIRouter(prefix="/me", tags=["Admin"])
 @router.get("")
 async def get_my_profile(user=Depends(validate_telegram_data)):
     tg_id = user['id']
-    res = supabase.table("masters").select("*").eq("telegram_id", tg_id).execute()
+    # Добавляем is_premium в выборку
+    res = supabase.table("masters").select("*, is_premium").eq("telegram_id", tg_id).execute()
     if not res.data:
         # Авто-регистрация
         new_user = {
@@ -113,6 +114,21 @@ async def get_services(user=Depends(validate_telegram_data)):
 
 @router.post("/services")
 async def create_service(srv: ServiceCreate, user=Depends(validate_telegram_data)):
+    # 1. Получаем статус мастера
+    master_info = supabase.table("masters").select("is_premium").eq("telegram_id", user['id']).single().execute()
+    is_premium = master_info.data.get('is_premium', False)
+
+    # 2. Если НЕ Premium — проверяем количество
+    if not is_premium:
+        count_res = supabase.table("services").select("id", count="exact").eq("master_telegram_id", user['id']).eq(
+            "is_active", True).execute()
+        current_count = count_res.count
+
+        if current_count >= 10:
+            raise HTTPException(status_code=403,
+                                detail="На базовом тарифе доступно не более 10 услуг. Перейдите на Pro.")
+
+    # 3. Сохраняем (код остаётся почти таким же, но category добавится автоматически из модели)
     data = srv.model_dump()
     data['master_telegram_id'] = user['id']
     data['is_active'] = True
@@ -162,12 +178,24 @@ async def get_hours(user=Depends(validate_telegram_data)):
 
 @router.post("/working-hours")
 async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram_data)):
-    supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
+    # 1. Проверяем подписку
+    master_info = supabase.table("masters").select("is_premium").eq("telegram_id", user['id']).single().execute()
+    is_premium = master_info.data.get('is_premium', False)
+
     data_list = []
     for h in hours:
         item = h.model_dump()
         item['master_telegram_id'] = user['id']
+
+        # 2. ЛОГИКА ОГРАНИЧЕНИЯ
+        # Если не премиум — принудительно ставим 30 (или 60) минут, игнорируя то, что прислал фронтенд
+        if not is_premium:
+            item['slot_minutes'] = 30  # Жесткий стандарт для Basic
+
         data_list.append(item)
+
+    # Дальше сохранение как обычно...
+    supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
     if data_list:
         supabase.table("working_hours").insert(data_list).execute()
     return {"status": "updated"}

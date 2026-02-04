@@ -176,6 +176,24 @@
            <div id="add-service-form" class="hidden bg-surface-dark/60 border border-border-dark p-4 rounded-xl flex flex-col gap-3 transition-all">
                <input type="text" id="new-srv-name" placeholder="Название услуги" class="bg-background-dark border border-border-dark rounded-lg p-3 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm font-medium">
                <textarea id="new-srv-desc" rows="2" placeholder="Краткое описание" class="bg-background-dark border border-border-dark rounded-lg p-3 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm font-medium resize-none"></textarea>
+
+               <div class="space-y-1">
+                   <label class="text-xs font-bold text-text-secondary ml-1 uppercase">Категория</label>
+                   <div class="flex bg-background-dark rounded-lg p-1 border border-border-dark">
+                       <label class="flex-1 cursor-pointer">
+                           <input type="radio" name="srv-cat" value="dog" class="peer hidden" checked>
+                           <div class="text-center py-2 text-sm font-bold text-text-secondary peer-checked:bg-surface-dark peer-checked:text-primary peer-checked:shadow-sm rounded transition-all">
+                               🐶 Собаки
+                           </div>
+                       </label>
+                       <label class="flex-1 cursor-pointer">
+                           <input type="radio" name="srv-cat" value="cat" class="peer hidden">
+                           <div class="text-center py-2 text-sm font-bold text-text-secondary peer-checked:bg-surface-dark peer-checked:text-primary peer-checked:shadow-sm rounded transition-all">
+                               🐱 Кошки
+                           </div>
+                       </label>
+                   </div>
+               </div>
                <div class="flex gap-2">
                    <div class="relative flex-1">
                        <input type="number" id="new-srv-price" placeholder="Цена" class="w-full bg-background-dark border border-border-dark rounded-lg p-3 pr-8 text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm font-medium">
@@ -195,9 +213,19 @@
         </div>
 
         <div id="tab-schedule" class="tab-content">
-           <div class="px-4 pt-6 pb-2">
-               <h3 class="text-white text-lg font-bold">Рабочие часы</h3>
-               <p class="text-text-secondary text-sm">Настройте доступность.</p>
+           <div class="px-4 pt-6 pb-2 flex justify-between items-end">
+               <div>
+                   <h3 class="text-white text-lg font-bold">Рабочие часы</h3>
+                   <p class="text-text-secondary text-sm">Настройте доступность.</p>
+               </div>
+               <div class="flex flex-col items-end">
+                   <span class="text-[10px] font-bold text-text-secondary uppercase mb-1">Шаг записи</span>
+                   <select id="slot-duration" class="bg-surface-dark border border-border-dark text-white text-sm font-bold rounded-lg px-2 py-1 outline-none focus:border-primary appearance-none text-right min-w-[80px]">
+                       <option value="30">30 мин</option>
+                       <option value="60">1 час</option>
+                       <option value="90">1.5 часа</option>
+                   </select>
+               </div>
            </div>
            <div id="schedule-container" class="divide-y divide-border-dark/30"></div>
            <div class="p-4 pb-6">

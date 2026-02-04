@@ -4,6 +4,7 @@ export interface Service {
     price: number;
     duration_min: number;
     description?: string;
+    category: 'dog' | 'cat';
     master_telegram_id?: number;
     is_active?: boolean;
 }
@@ -17,6 +18,7 @@ export interface MasterProfile {
     avatar_url: string;
     photos: string[];
     timezone: string;
+    is_premium: boolean;
 }
 
 export interface WorkingHour {
