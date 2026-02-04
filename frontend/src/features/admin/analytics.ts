@@ -88,7 +88,7 @@ export async function loadAnalytics() {
             // Считаем градусы для conic-gradient
             const degCompleted = (s.completed / total) * 360;
             const degPending = (s.pending / total) * 360;
-            const degCancelled = (s.cancelled / total) * 360;
+            // УДАЛЕНО: const degCancelled = ... (не использовалась)
 
             // Формируем градиент:
             // Зеленый (0 -> A), Синий (A -> A+B), Красный (A+B -> 360)
