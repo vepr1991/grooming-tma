@@ -49,23 +49,51 @@ async def update_profile(data: MasterProfileUpdate, user=Depends(validate_telegr
 
 @router.post("/upload-photo")
 async def upload_photo(file: UploadFile = File(...), user=Depends(validate_telegram_data)):
-    file_ext = file.filename.split(".")[-1]
-    file_path = f"{user['id']}/{uuid.uuid4()}.{file_ext}"
-    bucket_name = "avatars"
+    # 1. Проверка лимитов (Basic vs Pro)
+    tg_id = user['id']
+    res = supabase.table("masters").select("photos, is_premium").eq("telegram_id", tg_id).single().execute()
+    
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Master not found")
+        
+    master = res.data
+    current_photos = master.get('photos') or []
+    is_premium = master.get('is_premium', False)
+    
+    # Лимит: 10 для Pro, 3 для Basic
+    limit = 10 if is_premium else 3
+    
+    if len(current_photos) >= limit:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Лимит фото превышен ({limit}). Купите Pro версию."
+        )
 
+    # 2. Сжатие и Загрузка
     try:
-        file_bytes = await file.read()
+        # Читаем файл
+        original_bytes = await file.read()
+        
+        # Сжимаем!
+        compressed_bytes = compress_image(original_bytes, max_size=1024, quality=80)
+        
+        # Генерируем имя файла (всегда .jpg)
+        file_path = f"{user['id']}/{uuid.uuid4()}.jpg"
+        bucket_name = "avatars"
+
+        # Загружаем в Supabase с правильным Content-Type
         supabase.storage.from_(bucket_name).upload(
             path=file_path,
-            file=file_bytes,
-            file_options={"content-type": file.content_type}
+            file=compressed_bytes,
+            file_options={"content-type": "image/jpeg"}
         )
+        
         public_url = supabase.storage.from_(bucket_name).get_public_url(file_path)
         return {"url": public_url}
+        
     except Exception as e:
         print(f"Upload error: {e}")
         raise HTTPException(status_code=500, detail="Failed to upload photo")
-
 
 # --- Services ---
 
