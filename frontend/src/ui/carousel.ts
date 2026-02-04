@@ -1,15 +1,13 @@
 import { $ } from '../core/dom';
-import { BASE_URL } from '../core/api';
+import { BASE_URL } from '../core/api'; 
 import { Telegram } from '../core/tg';
 
-// ... остальной код без изменений ...
-
 export function renderCarousel(
-    trackId: string,
-    indicatorsId: string,
-    photos: string[],
-    isEditMode = false,
-    onAddClick?: () => void,
+    trackId: string, 
+    indicatorsId: string, 
+    photos: string[], 
+    isEditMode = false, 
+    onAddClick?: () => void, 
     onRemoveClick?: (index: number) => void
 ) {
     const track = $(trackId);
@@ -17,19 +15,19 @@ export function renderCarousel(
     if (!track) return;
 
     track.innerHTML = '';
-
-    // Render photos
+    
     photos.forEach((photo, index) => {
         const slide = document.createElement('div');
-        slide.className = 'flex-shrink-0 w-full h-full snap-center relative group';
+        // FIX: Добавил bg-black/20 чтобы границы фото были видны на темном фоне
+        slide.className = 'flex-shrink-0 w-full h-full snap-center relative group flex items-center justify-center bg-black/20';
         slide.innerHTML = `
-            <img src="${photo}" alt="Photo ${index + 1}" class="w-full h-full object-cover">
+            <img src="${photo}" alt="Photo ${index + 1}" class="w-full h-full object-contain">
             <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
         `;
-
+        
         if (isEditMode && onRemoveClick) {
             const delBtn = document.createElement('button');
-            delBtn.className = 'absolute top-4 right-4 p-2 bg-black/60 rounded-full text-white backdrop-blur-sm hover:bg-red-500/80 transition-all';
+            delBtn.className = 'absolute top-4 right-4 p-2 bg-black/60 rounded-full text-white backdrop-blur-sm hover:bg-red-500/80 transition-all z-10';
             delBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
             delBtn.onclick = (e) => { e.stopPropagation(); onRemoveClick(index); };
             slide.appendChild(delBtn);
@@ -37,7 +35,6 @@ export function renderCarousel(
         track.appendChild(slide);
     });
 
-    // Render "Add" slide if editing
     if (isEditMode && photos.length < 5 && onAddClick) {
         const addSlide = document.createElement('div');
         addSlide.className = 'flex-shrink-0 w-full h-full snap-center bg-surface-dark flex items-center justify-center cursor-pointer hover:brightness-110 transition-colors border-2 border-dashed border-primary/30';
@@ -60,8 +57,7 @@ export function renderCarousel(
     }
 
     renderIndicators(indicators, photos.length + (isEditMode && photos.length < 5 ? 1 : 0), 0);
-
-    // Add scroll listener
+    
     track.onscroll = () => {
         const index = Math.round(track.scrollLeft / track.clientWidth);
         renderIndicators(indicators, indicators?.children.length || 0, index);
@@ -84,7 +80,6 @@ function renderIndicators(container: HTMLElement | null, count: number, activeIn
 export async function uploadPhoto(file: File): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
-    // Используем fetch напрямую для FormData
     const response = await fetch(`${BASE_URL}/me/upload-photo`, {
         method: 'POST',
         headers: { 'X-Tg-Init-Data': Telegram.WebApp.initData || '' },
