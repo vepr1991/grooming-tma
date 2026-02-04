@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db import supabase
 from app.auth import validate_telegram_data
 
-# Импортируем наши новые роутеры
-from app.routers import admin, client
+# [ИЗМЕНЕНО] Добавили analytics в импорт
+from app.routers import admin, client, analytics
 
 app = FastAPI(title="Grooming TMA API")
 
@@ -20,6 +20,7 @@ app.add_middleware(
 # Подключаем роутеры
 app.include_router(admin.router)
 app.include_router(client.router)
+app.include_router(analytics.router) # [НОВОЕ] Подключаем роутер аналитики
 
 # Health Check
 @app.get("/health")
