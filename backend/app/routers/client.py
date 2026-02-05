@@ -5,7 +5,8 @@ import pytz
 
 from app.auth import validate_telegram_data
 from app.db import supabase
-from app.utils import send_telegram_message
+# [NEW] Добавили импорт escape_html
+from app.utils import send_telegram_message, escape_html
 from app.schemas.appointment import AppointmentCreate
 from app.services.appointment_service import AppointmentService
 
@@ -41,12 +42,8 @@ async def get_master_schedule(master_id: int):
     return res.data
 
 
-# backend/app/routers/client.py
-
-# ... (импорты остаются те же)
-
 @router.get("/masters/{master_id}/availability")
-async def get_master_availability(master_id: int, service_id: int, date: str):  # [ИЗМЕНЕНО] Добавили service_id
+async def get_master_availability(master_id: int, service_id: int, date: str):
     # 1. Получаем настройки мастера
     master_res = supabase.table("masters").select("timezone, is_premium").eq("telegram_id",
                                                                              master_id).single().execute()
@@ -57,7 +54,7 @@ async def get_master_availability(master_id: int, service_id: int, date: str):  
     tz_name = master_data.get('timezone', 'Asia/Almaty')
     is_premium = master_data.get('is_premium', False)
 
-    # [НОВОЕ] 1.1 Получаем длительность запрашиваемой услуги
+    # 1.1 Получаем длительность запрашиваемой услуги
     srv_res = supabase.table("services").select("duration_min").eq("id", service_id).single().execute()
     if not srv_res.data:
         raise HTTPException(404, "Service not found")
@@ -128,26 +125,21 @@ async def get_master_availability(master_id: int, service_id: int, date: str):  
         except ValueError:
             pass
 
-    # 4. Фильтруем слоты (С учетом "хвоста" новой услуги)
+    # 4. Фильтруем слоты
     now_in_master_tz = datetime.now(master_tz)
     free_slots = []
 
     for slot in potential_slots:
-        # Пропускаем прошлое
         if slot <= now_in_master_tz:
             continue
 
-        # Вычисляем, когда закончится НОВАЯ услуга, если начать её в этот слот
         requested_end = slot + timedelta(minutes=requested_duration)
 
-        # Если услуга вылезает за рабочий день — скрываем слот
         if requested_end > work_end:
             continue
 
-        # Проверка пересечений
         is_overlap = False
         for (busy_start, busy_end) in busy_intervals:
-            # Формула пересечения: (StartA < EndB) и (StartB < EndA)
             if slot < busy_end and busy_start < requested_end:
                 is_overlap = True
                 break
@@ -173,7 +165,8 @@ async def create_appointment_public(
         try:
             srv_res = supabase.table("services").select("name").eq("id", new_appt['service_id']).single().execute()
             if srv_res.data:
-                service_name = srv_res.data.get('name', 'Услуга')
+                # [NEW] Экранируем название услуги на всякий случай
+                service_name = escape_html(srv_res.data.get('name', 'Услуга'))
         except:
             pass
 
@@ -194,22 +187,30 @@ async def create_appointment_public(
         except:
             date_str = str(new_appt['starts_at'])
 
-        client_line = f"👤 Клиент: {new_appt.get('client_name', 'Не указано')}"
-        if new_appt.get('client_username'):
-            client_line += f" (@{new_appt['client_username']})"
+        # [NEW] Безопасная сборка сообщения (экранирование)
+        safe_client_name = escape_html(new_appt.get('client_name', 'Не указано'))
+        safe_username = escape_html(new_appt.get('client_username'))
+        safe_phone = escape_html(new_appt.get('client_phone'))
+        safe_pet_name = escape_html(new_appt.get('pet_name', 'Не указано'))
+        safe_pet_breed = escape_html(new_appt.get('pet_breed'))
+        safe_comment = escape_html(new_appt.get('comment'))
 
-        pet_line = f"🐶 Питомец: {new_appt.get('pet_name', 'Не указано')}"
-        if new_appt.get('pet_breed'):
-            pet_line += f" ({new_appt['pet_breed']})"
+        client_line = f"👤 Клиент: {safe_client_name}"
+        if safe_username:
+            client_line += f" (@{safe_username})"
+
+        pet_line = f"🐶 Питомец: {safe_pet_name}"
+        if safe_pet_breed:
+            pet_line += f" ({safe_pet_breed})"
 
         comment_section = ""
-        if new_appt.get('comment'):
-            comment_section = f"\n💬 Комментарий: {new_appt['comment']}"
+        if safe_comment:
+            comment_section = f"\n💬 Комментарий: {safe_comment}"
 
         msg = (
             f"🆕 <b>Новая запись!</b>\n\n"
             f"{client_line}\n"
-            f"📞 Телефон: {new_appt.get('client_phone')}\n"
+            f"📞 Телефон: {safe_phone}\n"
             f"{pet_line}\n"
             f"✂️ Услуга: {service_name}\n"
             f"🗓 Время: {date_str}\n\n"
