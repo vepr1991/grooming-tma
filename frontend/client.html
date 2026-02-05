@@ -172,7 +172,7 @@
                         <span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none material-symbols-rounded text-sm font-bold">check</span>
                     </div>
                     <span class="text-xs text-secondary leading-tight select-none group-active:text-white transition-colors">
-                        Я согласен с <a href="#" class="text-primary hover:underline font-bold" onclick="event.stopPropagation(); Telegram.WebApp.showAlert('Здесь текст оферты...')">условиями оферты</a> и <a href="#" class="text-primary hover:underline font-bold" onclick="event.stopPropagation(); Telegram.WebApp.showAlert('Здесь текст политики...')">политикой обработки данных</a>.
+                        Я согласен с <button class="text-primary hover:underline font-bold" onclick="event.stopPropagation(); event.preventDefault(); openLegal('offer')">условиями оферты</button> и <button class="text-primary hover:underline font-bold" onclick="event.stopPropagation(); event.preventDefault(); openLegal('policy')">политикой обработки данных</button>.
                     </span>
                 </label>
             </div>
@@ -190,6 +190,18 @@
         <div id="my-appointments-list" class="px-4 flex flex-col gap-3">
             <div class="text-center text-secondary py-10">Загрузка...</div>
         </div>
+    </div>
+
+    <div id="view-legal" class="hidden min-h-screen bg-bg flex-col pt-4 pb-10 absolute inset-0 z-[60]">
+        <header class="px-4 mb-6 sticky top-0 bg-bg/95 backdrop-blur z-20 py-2 border-b border-border/30">
+            <button onclick="closeLegal()" class="flex items-center gap-1 text-secondary hover:text-white transition-colors mb-2">
+                <span class="material-symbols-rounded text-xl">arrow_back</span>
+                <span class="text-sm font-bold">Назад к записи</span>
+            </button>
+            <h2 id="legal-title" class="text-xl font-bold text-white">Документ</h2>
+        </header>
+        <div id="legal-content" class="px-4 text-sm text-secondary leading-relaxed pb-10">
+            </div>
     </div>
 
     <div id="view-success" class="hidden min-h-screen flex flex-col items-center justify-center p-6 text-center bg-bg">
