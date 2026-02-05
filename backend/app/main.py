@@ -1,39 +1,33 @@
 # (c) 2026 Владимир Коваленко. Все права защищены.
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from apscheduler.schedulers.asyncio import AsyncIOScheduler  # [NEW]
+# from contextlib import asynccontextmanager -> УБРАЛИ
+# from apscheduler.schedulers.asyncio import AsyncIOScheduler -> УБРАЛИ
 
 from app.db import supabase
 from app.auth import validate_telegram_data
 from app.routers import admin, client, analytics
-from app.reminders import check_reminders  # [NEW] Импортируем нашу функцию
+# from app.reminders import check_reminders -> УБРАЛИ
 
+# Lifespan больше не нужен, так как воркер теперь отдельно
+app = FastAPI(title="Grooming TMA API")
 
-# [NEW] Настройка жизненного цикла (Startup/Shutdown)
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Запуск планировщика
-    scheduler = AsyncIOScheduler()
-    # Добавляем задачу: запускать check_reminders каждую минуту
-    scheduler.add_job(check_reminders, 'interval', minutes=1)
-    scheduler.start()
-    print("⏰ Scheduler started!")
-
-    yield
-
-    # Остановка (если нужно)
-    scheduler.shutdown()
-
-
-# Передаем lifespan в приложение
-app = FastAPI(title="Grooming TMA API", lifespan=lifespan)
+# [CORS SETUP - Оставляем как настроили на прошлом шаге]
+ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "https://grooming-tma-frontend.onrender.com",
+    "https://web.telegram.org",
+    "https://a.web.telegram.org",
+    "https://k.web.telegram.org",
+    "https://macos.telegram.org"
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

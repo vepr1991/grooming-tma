@@ -3,25 +3,33 @@ version: '3.8'
 services:
   backend:
     build: ./backend
-    # --reload позволяет менять код python на лету без перезагрузки
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
     env_file: .env
 
+  # [NEW] Добавляем воркер
+  worker:
+    build: ./backend
+    # Запускаем наш новый скрипт вместо uvicorn
+    command: python -m app.worker
+    volumes:
+      - ./backend:/app
+    env_file: .env
+    depends_on:
+      - backend
+
   frontend:
     build: ./frontend
-    command: npm run dev -- --host
+    # В проде здесь не нужен command, так как Nginx стартует сам.
+    # Но для локальной разработки оставим npm run dev, если нужно,
+    # или закомментируй, если проверяешь продакшн-сборку.
+    # command: npm run dev -- --host
     volumes:
-      # 1. Прокидываем папку с кодом внутрь, чтобы container видел файлы
       - ./frontend:/app
-      # 2. ВАЖНО: Это "защищает" папку node_modules внутри контейнера,
-      # чтобы она не затерлась пустотой с твоего компьютера
       - /app/node_modules
     ports:
-      - "3000:3000"
-    # Переменная VITE_API_URL больше не обязательна, так как мы настроили Proxy,
-    # но можно оставить её пустой или удалить секцию environment.
+      - "3000:80" # Nginx слушает 80 порт внутри
 
   bot:
     build: ./bot
