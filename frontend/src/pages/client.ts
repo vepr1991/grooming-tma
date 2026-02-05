@@ -2,7 +2,7 @@
  * (c) 2026 Vladimir Kovalenko
  */
 import { initTelegram, Telegram } from '../core/tg';
-import { $, show, hide, setText } from '../core/dom';
+import { $, show, hide } from '../core/dom';
 import { apiFetch } from '../core/api';
 import { loadMasterInfo, loadServices } from '../features/client/home';
 import { setupBooking, openBooking } from '../features/client/booking';
