@@ -2,6 +2,7 @@ import { $, setText, show, hide, getVal } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { Telegram } from '../../core/tg';
 import { Service } from '../../types';
+import { showToast } from '../../ui/toast'; // [FIX 2] Импортируем Toast
 
 let selectedService: Service | null = null;
 let selectedDate: string | null = null;
@@ -185,17 +186,17 @@ function showBookingForm() {
 async function submitBooking() {
     const name = getVal('inp-client-name').trim();
     const phone = getVal('inp-phone').trim();
-
-    // [NEW] Проверка чекбокса
     const agreement = ($('inp-agreement') as HTMLInputElement)?.checked;
 
     if (!name || phone.length < 10) {
-        Telegram.WebApp.showAlert('Введите имя и телефон');
+        // Здесь можно оставить showAlert для критичных ошибок валидации или тоже заменить на Toast
+        showToast('Заполните имя и телефон', 'error');
         return;
     }
 
+    // [FIX 2] Toast вместо Alert для оферты
     if (!agreement) {
-        Telegram.WebApp.showAlert('Вы должны согласиться с условиями оферты');
+        showToast('Примите условия оферты', 'error');
         return;
     }
 
@@ -230,7 +231,7 @@ async function submitBooking() {
         Telegram.WebApp.MainButton.hide();
 
     } catch (e) {
-        Telegram.WebApp.showAlert('Ошибка записи. Возможно, время уже занято.');
+        showToast('Ошибка записи. Время занято?', 'error');
         Telegram.WebApp.MainButton.hideProgress();
     }
 }
