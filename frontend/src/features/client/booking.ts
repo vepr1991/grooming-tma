@@ -108,15 +108,25 @@ function renderCalendar() {
     }
 }
 
+// frontend/src/features/client/booking.ts
+
 async function loadSlots(date: string) {
     show('slots-container');
     const grid = $('slots-grid');
     if(!grid) return;
 
+    // Проверка, что услуга выбрана (она должна быть, раз мы здесь)
+    if (!selectedService) {
+        grid.innerHTML = '<div class="col-span-4 text-center text-error">Ошибка: Услуга не выбрана</div>';
+        return;
+    }
+
     grid.innerHTML = '<div class="col-span-4 text-center text-secondary text-sm py-4">Поиск окошек...</div>';
 
     try {
-        const slots = await apiFetch<string[]>(`/masters/${masterId}/availability?date=${date}`);
+        // [ИЗМЕНЕНО] Добавили &service_id=${selectedService.id}
+        const slots = await apiFetch<string[]>(`/masters/${masterId}/availability?date=${date}&service_id=${selectedService.id}`);
+
         grid.innerHTML = '';
 
         if (slots.length === 0) {

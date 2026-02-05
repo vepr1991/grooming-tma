@@ -41,8 +41,12 @@ async def get_master_schedule(master_id: int):
     return res.data
 
 
+# backend/app/routers/client.py
+
+# ... (импорты остаются те же)
+
 @router.get("/masters/{master_id}/availability")
-async def get_master_availability(master_id: int, date: str):
+async def get_master_availability(master_id: int, service_id: int, date: str):  # [ИЗМЕНЕНО] Добавили service_id
     # 1. Получаем настройки мастера
     master_res = supabase.table("masters").select("timezone, is_premium").eq("telegram_id",
                                                                              master_id).single().execute()
@@ -52,6 +56,12 @@ async def get_master_availability(master_id: int, date: str):
     master_data = master_res.data
     tz_name = master_data.get('timezone', 'Asia/Almaty')
     is_premium = master_data.get('is_premium', False)
+
+    # [НОВОЕ] 1.1 Получаем длительность запрашиваемой услуги
+    srv_res = supabase.table("services").select("duration_min").eq("id", service_id).single().execute()
+    if not srv_res.data:
+        raise HTTPException(404, "Service not found")
+    requested_duration = srv_res.data.get('duration_min', 60)
 
     try:
         master_tz = pytz.timezone(tz_name)
@@ -64,7 +74,7 @@ async def get_master_availability(master_id: int, date: str):
     except ValueError:
         raise HTTPException(400, "Invalid date format YYYY-MM-DD")
 
-    # 2. Генерируем сетку слотов на основе графика
+    # 2. Генерируем сетку
     weekday_iso = target_date.isoweekday()
     wh_res = supabase.table("working_hours") \
         .select("*") \
@@ -73,11 +83,10 @@ async def get_master_availability(master_id: int, date: str):
         .execute()
 
     if not wh_res.data:
-        return []  # Выходной
+        return []
 
     schedule = wh_res.data[0]
 
-    # Логика шага: Basic - жестко 30 мин, Pro - как настроил
     db_slot = schedule.get('slot_minutes', 30)
     slot_min = 30 if not is_premium else db_slot
 
@@ -87,18 +96,16 @@ async def get_master_availability(master_id: int, date: str):
     work_start = target_date.replace(hour=start_parts[0], minute=start_parts[1], second=0)
     work_end = target_date.replace(hour=end_parts[0], minute=end_parts[1], second=0)
 
-    # Генерация всех возможных слотов (сетка)
     potential_slots = []
     current = work_start
     while current < work_end:
         potential_slots.append(current)
         current += timedelta(minutes=slot_min)
 
-    # 3. Получаем занятые интервалы (С учетом длительности услуг!)
+    # 3. Получаем занятые интервалы
     day_start_utc = target_date.astimezone(pytz.utc)
     day_end_utc = (target_date + timedelta(days=1)).astimezone(pytz.utc)
 
-    # [FIX] Запрашиваем длительность услуги вместе с записью
     busy_res = supabase.table("appointments") \
         .select("starts_at, services(duration_min)") \
         .eq("master_telegram_id", master_id) \
@@ -112,8 +119,6 @@ async def get_master_availability(master_id: int, date: str):
         t_str = b['starts_at'].replace('Z', '+00:00')
         try:
             appt_start = datetime.fromisoformat(t_str).astimezone(master_tz)
-
-            # Если услуга удалена или не найдена, берем 60 мин по дефолту
             duration = 60
             if b.get('services') and b['services'].get('duration_min'):
                 duration = b['services']['duration_min']
@@ -123,28 +128,34 @@ async def get_master_availability(master_id: int, date: str):
         except ValueError:
             pass
 
-    # 4. Фильтруем слоты
+    # 4. Фильтруем слоты (С учетом "хвоста" новой услуги)
     now_in_master_tz = datetime.now(master_tz)
     free_slots = []
 
     for slot in potential_slots:
-        # Проверка 1: Слот в прошлом?
+        # Пропускаем прошлое
         if slot <= now_in_master_tz:
             continue
 
-        # Проверка 2: Попадает ли слот внутрь занятого интервала?
-        # Слот занят, если: Start_Busy <= Slot < End_Busy
-        is_busy = False
-        for (b_start, b_end) in busy_intervals:
-            if b_start <= slot < b_end:
-                is_busy = True
+        # Вычисляем, когда закончится НОВАЯ услуга, если начать её в этот слот
+        requested_end = slot + timedelta(minutes=requested_duration)
+
+        # Если услуга вылезает за рабочий день — скрываем слот
+        if requested_end > work_end:
+            continue
+
+        # Проверка пересечений
+        is_overlap = False
+        for (busy_start, busy_end) in busy_intervals:
+            # Формула пересечения: (StartA < EndB) и (StartB < EndA)
+            if slot < busy_end and busy_start < requested_end:
+                is_overlap = True
                 break
 
-        if not is_busy:
+        if not is_overlap:
             free_slots.append(slot.isoformat())
 
     return free_slots
-
 
 @router.post("/appointments")
 async def create_appointment_public(
