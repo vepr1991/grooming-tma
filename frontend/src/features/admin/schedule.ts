@@ -1,4 +1,4 @@
-import { $, getVal } from '../../core/dom';
+import { $ } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { showToast } from '../../ui/toast';
 import { getScheduleSkeleton } from '../../ui/skeletons';
