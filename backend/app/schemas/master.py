@@ -17,6 +17,7 @@ class ServiceBase(BaseModel):
     price: float
     duration_min: int = 60
     description: Optional[str] = ""
+    category: str = 'dog'
 
 class ServiceCreate(ServiceBase):
     pass
@@ -27,6 +28,7 @@ class ServiceUpdate(BaseModel):
     price: Optional[float] = None
     duration_min: Optional[int] = None
     description: Optional[str] = None
+    category: Optional[str] = None
 # ----------------------------------------
 
 class ServiceResponse(ServiceBase):

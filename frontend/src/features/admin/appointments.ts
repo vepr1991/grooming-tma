@@ -10,6 +10,7 @@ let appointmentsCache: Appointment[] = [];
 let selectedDate = new Date();
 let viewDate = new Date();
 let activeTab: Appointment['status'] = 'pending';
+let isPremium = false; // [NEW] Статус подписки
 
 const TABS = [
     { id: 'pending', label: 'Ожидает' },
@@ -22,6 +23,14 @@ const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель
 const WEEK_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
 export async function loadAppointments() {
+    // [NEW] Сначала узнаем статус подписки, чтобы правильно отрисовать табы
+    try {
+        const me = await apiFetch<any>('/me');
+        isPremium = me.profile.is_premium;
+    } catch {
+        isPremium = false;
+    }
+
     renderTabs();
     const list = $('appointments-list');
     if(list) list.innerHTML = '<div class="text-center text-text-secondary py-8">Загрузка...</div>';
@@ -39,7 +48,18 @@ function renderTabs() {
     const container = $('appointment-tabs');
     if (!container) return;
     container.innerHTML = '';
-    TABS.forEach(tab => {
+
+    // [NEW] Фильтрация табов для Basic
+    const visibleTabs = isPremium
+        ? TABS
+        : TABS.filter(t => ['pending', 'confirmed'].includes(t.id));
+
+    // Если активный таб недоступен (например, переключились с Pro на Basic), сбрасываем на pending
+    if (!visibleTabs.find(t => t.id === activeTab)) {
+        activeTab = 'pending';
+    }
+
+    visibleTabs.forEach(tab => {
         const btn = document.createElement('button');
         const isActive = activeTab === tab.id;
         btn.className = `whitespace-nowrap pb-3 text-xs font-bold uppercase tracking-wider transition-all relative flex-shrink-0 ${isActive ? 'text-primary' : 'text-text-secondary hover:text-white'}`;
@@ -53,14 +73,13 @@ function renderTabs() {
 function changeMonth(offset: number) {
     viewDate.setMonth(viewDate.getMonth() + offset);
     renderCalendar();
-    renderList(); // FIX: Обновляем список при смене месяца
+    renderList();
 }
 
 function renderCalendar() {
     const container = $('calendar-container');
     if (!container) return;
 
-    // Точки только для активных записей
     const busyDates = new Set(appointmentsCache
         .filter(a => ['pending', 'confirmed'].includes(a.status))
         .map(a => a.starts_at.split('T')[0]));
@@ -144,23 +163,17 @@ function renderList() {
     let filtered: Appointment[] = [];
 
     if (activeTab === 'completed' || activeTab === 'cancelled') {
-        // FIX: Показываем записи за ВЕСЬ МЕСЯЦ (viewDate)
         const y = viewDate.getFullYear();
         const m = String(viewDate.getMonth() + 1).padStart(2, '0');
         const monthPrefix = `${y}-${m}`;
         filtered = appointmentsCache.filter(a => a.starts_at.startsWith(monthPrefix) && a.status === activeTab);
-
-        // Сортировка: Сначала новые (история)
         filtered.sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
     } else {
-        // Показываем записи за ВЫБРАННЫЙ ДЕНЬ (selectedDate)
         const y = selectedDate.getFullYear();
         const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
         const d = String(selectedDate.getDate()).padStart(2, '0');
         const dateStr = `${y}-${m}-${d}`;
         filtered = appointmentsCache.filter(a => a.starts_at.startsWith(dateStr) && a.status === activeTab);
-
-        // Сортировка: Сначала ранние (расписание)
         filtered.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
     }
 
@@ -179,7 +192,6 @@ function createCard(a: Appointment): HTMLElement {
     const el = document.createElement('div');
     const dateObj = new Date(a.starts_at);
 
-    // FIX: Если список за месяц, добавляем дату (ДД.ММ ЧЧ:ММ)
     let timeDisplay = '';
     if (activeTab === 'completed' || activeTab === 'cancelled') {
         const day = String(dateObj.getDate()).padStart(2, '0');
@@ -200,6 +212,11 @@ function createCard(a: Appointment): HTMLElement {
 
     el.className = `relative bg-surface-dark rounded-2xl p-4 border border-border-dark flex flex-col gap-4 transition-all duration-300 border-l-4 ${c.border} animate-in fade-in slide-in-from-bottom-2`;
 
+    // [MODIFIED] Определение иконки для карточки записи
+    // Берем категорию из сервиса, если она там есть, иначе ставим собаку
+    const srv = a.services as any;
+    const icon = (srv?.category === 'cat') ? ICONS.Cat : ICONS.Pet;
+
     el.innerHTML = `
       <div class="flex justify-between items-center">
         <div class="flex items-center gap-1.5">
@@ -209,7 +226,7 @@ function createCard(a: Appointment): HTMLElement {
         <span class="text-[10px] font-bold px-2 py-0.5 rounded ${c.bg} ${c.color}">${c.label}</span>
       </div>
       <div class="flex gap-4 items-start">
-        <div class="w-20 h-20 rounded-2xl bg-background-dark flex-shrink-0 border border-border-dark shadow-inner flex items-center justify-center text-text-secondary/60">${ICONS.Pet}</div>
+        <div class="w-20 h-20 rounded-2xl bg-background-dark flex-shrink-0 border border-border-dark shadow-inner flex items-center justify-center text-text-secondary/60 text-2xl">${icon}</div>
         <div class="flex-grow min-w-0 space-y-1">
             <div class="flex flex-col"><span class="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Кличка</span><h3 class="text-lg font-bold truncate text-white leading-tight">${a.pet_name}</h3></div>
             <div class="grid grid-cols-2 gap-2 mt-1">

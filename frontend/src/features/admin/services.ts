@@ -2,7 +2,7 @@ import { $, show, hide, getVal, setVal } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { showToast } from '../../ui/toast';
 import { showConfirm } from '../../ui/modal';
-import { getAdminServiceSkeleton } from '../../ui/skeletons'; // NEW
+import { getAdminServiceSkeleton } from '../../ui/skeletons';
 import { ICONS } from '../../ui/icons';
 import { Service } from '../../types';
 
@@ -34,10 +34,15 @@ function createServiceCard(s: Service): HTMLElement {
 
     const hasDesc = !!s.description;
 
+    // [MODIFIED] Выбор иконки
+    const icon = s.category === 'cat' ? '🐱' : '🐶';
+
     el.innerHTML = `
         <div class="p-4 flex justify-between items-center transition-colors min-h-[72px] ${hasDesc ? 'cursor-pointer hover:bg-black/5' : ''} header-row">
             <div class="flex flex-col gap-1 flex-1 min-w-0">
-                <span class="text-white font-bold text-base leading-tight break-words">${s.name}</span>
+                <span class="text-white font-bold text-base leading-tight break-words">
+                    <span class="mr-1">${icon}</span> ${s.name}
+                </span>
                 <span class="text-primary text-sm font-bold">${s.price} ₸ • ${s.duration_min} мин</span>
             </div>
             <div class="flex items-center gap-1 shrink-0 ml-3 actions">
@@ -83,6 +88,12 @@ function openForm(s?: Service) {
     setVal('new-srv-desc', s?.description || '');
     setVal('new-srv-price', s?.price?.toString() || '');
     setVal('new-srv-dur', s?.duration_min?.toString() || '60');
+
+    // [MODIFIED] Установка радио-кнопки категории
+    const catVal = s?.category || 'dog';
+    const radio = document.querySelector(`input[name="srv-cat"][value="${catVal}"]`) as HTMLInputElement;
+    if (radio) radio.checked = true;
+
     $('new-srv-name')?.focus();
     form.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -112,11 +123,17 @@ export function initServiceHandlers() {
         const btn = e.target as HTMLButtonElement;
         btn.disabled = true;
         try {
+            // [MODIFIED] Считывание выбранной категории
+            const catInputs = document.querySelectorAll('input[name="srv-cat"]');
+            let category = 'dog';
+            catInputs.forEach((inp: any) => { if (inp.checked) category = inp.value; });
+
             const payload = {
                 name,
                 description: getVal('new-srv-desc'),
                 price: parseFloat(price),
-                duration_min: parseInt(getVal('new-srv-dur')) || 60
+                duration_min: parseInt(getVal('new-srv-dur')) || 60,
+                category // Добавляем в запрос
             };
 
             if (editingId) {

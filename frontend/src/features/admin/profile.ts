@@ -6,12 +6,17 @@ import { MasterProfile } from '../../types';
 
 let currentPhotos: string[] = [];
 let originalData: Partial<MasterProfile> = {};
+// [NEW] Храним статус подписки
+let isPremium = false;
 
 export async function loadProfile() {
     try {
         const data = await apiFetch<{ user: any, profile: MasterProfile }>('/me');
         const p = data.profile;
         if (!p.salon_name) show('onboarding-screen');
+
+        // [NEW] Получаем статус
+        isPremium = p.is_premium || false;
 
         setVal('salon-name', p.salon_name || '');
         setVal('address', p.address || '');
@@ -26,9 +31,17 @@ export async function loadProfile() {
 }
 
 function updateCarousel(editMode: boolean) {
+    // [NEW] Лимит фото: 10 для Pro, 3 для Basic
+    const limit = isPremium ? 10 : 3;
+
+    // Если достигнут лимит, передаем undefined, чтобы carousel.ts не рисовал кнопку "+"
+    const addHandler = (currentPhotos.length < limit)
+        ? () => $('photo-input')?.click()
+        : undefined;
+
     renderCarousel(
         'carousel-track', 'carousel-indicators', currentPhotos, editMode,
-        () => $('photo-input')?.click(),
+        addHandler,
         (idx) => { currentPhotos.splice(idx, 1); updateCarousel(true); }
     );
 }

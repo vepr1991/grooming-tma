@@ -1,19 +1,44 @@
-import { $ } from '../../core/dom';
+import { $, getVal } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { showToast } from '../../ui/toast';
-import { getScheduleSkeleton } from '../../ui/skeletons'; // NEW
+import { getScheduleSkeleton } from '../../ui/skeletons';
 import { WorkingHour } from '../../types';
 
 export async function loadSchedule() {
     const container = $('schedule-container');
     if (!container) return;
 
-    // NEW: Скелетон
+    // [NEW] Проверка подписки для блокировки слота
+    let isPremium = false;
+    try {
+        const me = await apiFetch<any>('/me');
+        isPremium = me.profile.is_premium;
+    } catch { }
+
     container.innerHTML = getScheduleSkeleton();
 
     try {
         const hours = await apiFetch<WorkingHour[]>('/me/working-hours');
-        container.innerHTML = ''; // Очищаем скелетон
+        container.innerHTML = '';
+
+        // [NEW] Настройка селекта слотов
+        const slotSelect = $('slot-duration') as HTMLInputElement;
+        if (slotSelect) {
+            // Находим сохраненное значение слота (берем из первого дня, так как оно общее)
+            const savedSlot = hours.find(h => h.slot_minutes)?.slot_minutes || 30;
+
+            if (!isPremium) {
+                slotSelect.value = "30";
+                slotSelect.disabled = true;
+                slotSelect.classList.add('opacity-50', 'cursor-not-allowed');
+                // Можно добавить title, почему заблокировано
+                slotSelect.title = "Доступно в Pro версии";
+            } else {
+                slotSelect.disabled = false;
+                slotSelect.classList.remove('opacity-50', 'cursor-not-allowed');
+                slotSelect.value = savedSlot.toString();
+            }
+        }
 
         const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
@@ -64,6 +89,11 @@ export function initScheduleHandlers() {
             const button = e.target as HTMLButtonElement;
             button.disabled = true;
             const payload: any[] = [];
+
+            // [NEW] Считываем выбранную длительность слота
+            // Если инпут заблокирован или не найден, ставим 30 по дефолту
+            const slotDur = parseInt(getVal('slot-duration')) || 30;
+
             const rows = document.querySelectorAll('#schedule-container .group');
 
             rows.forEach(row => {
@@ -75,7 +105,7 @@ export function initScheduleHandlers() {
                         day_of_week: parseInt(cb.dataset.day!),
                         start_time: start,
                         end_time: end,
-                        slot_minutes: 30
+                        slot_minutes: slotDur // Отправляем значение
                     });
                 }
             });

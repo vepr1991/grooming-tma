@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from typing import List
 from datetime import datetime
+from app.utils import send_telegram_message, compress_image
 import pytz
 import uuid
 
@@ -18,7 +19,8 @@ router = APIRouter(prefix="/me", tags=["Admin"])
 @router.get("")
 async def get_my_profile(user=Depends(validate_telegram_data)):
     tg_id = user['id']
-    res = supabase.table("masters").select("*").eq("telegram_id", tg_id).execute()
+    # Добавляем is_premium в выборку
+    res = supabase.table("masters").select("*, is_premium").eq("telegram_id", tg_id).execute()
     if not res.data:
         # Авто-регистрация
         new_user = {
@@ -48,23 +50,54 @@ async def update_profile(data: MasterProfileUpdate, user=Depends(validate_telegr
 
 @router.post("/upload-photo")
 async def upload_photo(file: UploadFile = File(...), user=Depends(validate_telegram_data)):
-    file_ext = file.filename.split(".")[-1]
-    file_path = f"{user['id']}/{uuid.uuid4()}.{file_ext}"
-    bucket_name = "avatars"
+    # 1. Проверка лимитов
+    tg_id = user['id']
+    res = supabase.table("masters").select("photos, is_premium").eq("telegram_id", tg_id).single().execute()
+    
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Master not found")
+        
+    master = res.data
+    current_photos = master.get('photos') or []
+    is_premium = master.get('is_premium', False)
+    
+    # --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
+    # Лимит для ОТОБРАЖЕНИЯ в профиле: 10 (Pro) или 3 (Basic)
+    display_limit = 10 if is_premium else 3
+    
+    # Лимит для ЗАГРУЗКИ (хранилища): даем запас +5 фото, чтобы можно было "менять" фото без удаления
+    # Например, на Basic можно загрузить до 8 фото, но в профиль сохранятся только 3.
+    upload_limit = display_limit + 5 
+    
+    if len(current_photos) >= upload_limit:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Временное хранилище переполнено ({upload_limit} фото). Сохраните профиль, чтобы очистить место."
+        )
+    # -----------------------
 
+    # 2. Сжатие и Загрузка
     try:
-        file_bytes = await file.read()
+        original_bytes = await file.read()
+        
+        # Сжимаем
+        compressed_bytes = compress_image(original_bytes, max_size=1024, quality=80)
+        
+        file_path = f"{user['id']}/{uuid.uuid4()}.jpg"
+        bucket_name = "avatars"
+
         supabase.storage.from_(bucket_name).upload(
             path=file_path,
-            file=file_bytes,
-            file_options={"content-type": file.content_type}
+            file=compressed_bytes,
+            file_options={"content-type": "image/jpeg"}
         )
+        
         public_url = supabase.storage.from_(bucket_name).get_public_url(file_path)
         return {"url": public_url}
+        
     except Exception as e:
         print(f"Upload error: {e}")
         raise HTTPException(status_code=500, detail="Failed to upload photo")
-
 
 # --- Services ---
 
@@ -81,6 +114,21 @@ async def get_services(user=Depends(validate_telegram_data)):
 
 @router.post("/services")
 async def create_service(srv: ServiceCreate, user=Depends(validate_telegram_data)):
+    # 1. Получаем статус мастера
+    master_info = supabase.table("masters").select("is_premium").eq("telegram_id", user['id']).single().execute()
+    is_premium = master_info.data.get('is_premium', False)
+
+    # 2. Если НЕ Premium — проверяем количество
+    if not is_premium:
+        count_res = supabase.table("services").select("id", count="exact").eq("master_telegram_id", user['id']).eq(
+            "is_active", True).execute()
+        current_count = count_res.count
+
+        if current_count >= 10:
+            raise HTTPException(status_code=403,
+                                detail="На базовом тарифе доступно не более 10 услуг. Перейдите на Pro.")
+
+    # 3. Сохраняем (код остаётся почти таким же, но category добавится автоматически из модели)
     data = srv.model_dump()
     data['master_telegram_id'] = user['id']
     data['is_active'] = True
@@ -130,12 +178,24 @@ async def get_hours(user=Depends(validate_telegram_data)):
 
 @router.post("/working-hours")
 async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram_data)):
-    supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
+    # 1. Проверяем подписку
+    master_info = supabase.table("masters").select("is_premium").eq("telegram_id", user['id']).single().execute()
+    is_premium = master_info.data.get('is_premium', False)
+
     data_list = []
     for h in hours:
         item = h.model_dump()
         item['master_telegram_id'] = user['id']
+
+        # 2. ЛОГИКА ОГРАНИЧЕНИЯ
+        # Если не премиум — принудительно ставим 30 (или 60) минут, игнорируя то, что прислал фронтенд
+        if not is_premium:
+            item['slot_minutes'] = 30  # Жесткий стандарт для Basic
+
         data_list.append(item)
+
+    # Дальше сохранение как обычно...
+    supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
     if data_list:
         supabase.table("working_hours").insert(data_list).execute()
     return {"status": "updated"}

@@ -7,7 +7,11 @@ CREATE TABLE IF NOT EXISTS masters (
     address TEXT,
     description TEXT,
     avatar_url TEXT,
-    timezone TEXT DEFAULT 'Asia/Almaty', -- Добавили часовой пояс
+    timezone TEXT DEFAULT 'Asia/Almaty',
+
+    -- [NEW] Для разделения версий (Basic / Pro)
+    is_premium BOOLEAN DEFAULT FALSE,
+
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -19,6 +23,11 @@ CREATE TABLE IF NOT EXISTS services (
     price NUMERIC NOT NULL,
     duration_min INTEGER DEFAULT 60,
     is_active BOOLEAN DEFAULT TRUE,
+
+    -- [NEW] Для иконок (dog/cat) и подробного описания
+    category TEXT DEFAULT 'dog', -- 'dog' или 'cat'
+    description TEXT,
+
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -42,17 +51,28 @@ CREATE TABLE IF NOT EXISTS appointments (
     starts_at TIMESTAMPTZ NOT NULL,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'completed')),
 
+    -- Данные клиента
     client_phone TEXT NOT NULL,
+
+    -- [NEW] Добавили имя и юзернейм клиента (нужны для уведомлений и карточек)
+    client_name TEXT,
+    client_username TEXT,
+
+    -- Данные питомца
     pet_name TEXT NOT NULL,
     pet_breed TEXT,
     pet_weight_kg NUMERIC,
     comment TEXT,
     idempotency_key TEXT,
 
+    -- [NEW] Флаги для авто-напоминаний (чтобы не слать дважды)
+    reminder_5h_sent BOOLEAN DEFAULT FALSE,
+    reminder_1h_sent BOOLEAN DEFAULT FALSE,
+
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Индекс от овербукинга
+-- Индекс от дублей (защита от двойного клика на одно время)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_slot
 ON appointments (master_telegram_id, starts_at)
 WHERE status != 'cancelled';
