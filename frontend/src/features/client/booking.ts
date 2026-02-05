@@ -11,29 +11,34 @@ let masterTimezone = 'Asia/Almaty';
 
 // Calendar state
 let viewDate = new Date();
-
-// [FIX] Храним колбэк для возврата назад
 let onBackCallback: (() => void) | null = null;
 
-// [FIX] Функция закрытия (используется и кнопкой в HTML, и кнопкой Telegram)
+// Хелпер
+function createEl<K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    className?: string,
+    text?: string
+): HTMLElementTagNameMap[K] {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text) el.textContent = text;
+    return el;
+}
+
 function closeBooking() {
     Telegram.WebApp.BackButton.hide();
     Telegram.WebApp.MainButton.hide();
     hide('view-booking');
     show('view-home');
-
-    // Вызываем колбэк (очистка или обновление данных на главной)
     if (onBackCallback) onBackCallback();
 }
 
-// [FIX] Делаем функцию доступной глобально для onclick="goBack()" в HTML
 (window as any).goBack = closeBooking;
 
 export function setupBooking(mId: string, tz: string) {
     masterId = mId;
     masterTimezone = tz || 'Asia/Almaty';
 
-    // Calendar Navigation
     const prevBtn = $('btn-prev-month');
     const nextBtn = $('btn-next-month');
 
@@ -45,9 +50,8 @@ export function openBooking(service: Service, onBack: () => void) {
     selectedService = service;
     selectedDate = null;
     selectedSlot = null;
-    onBackCallback = onBack; // [FIX] Сохраняем колбэк
+    onBackCallback = onBack;
 
-    // UI Update
     setText('selected-service-name', `${service.name} • ${service.price} ₸`);
     hide('view-home');
     show('view-booking');
@@ -55,19 +59,16 @@ export function openBooking(service: Service, onBack: () => void) {
     hide('slots-container');
     hide('booking-form');
 
-    // [FIX] Используем единую функцию закрытия
     Telegram.WebApp.BackButton.show();
     Telegram.WebApp.BackButton.onClick(closeBooking);
 
     viewDate = new Date();
-    // Auto-select today
+    // Авто-выбор сегодняшней даты
     const today = new Date();
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
     const d = String(today.getDate()).padStart(2, '0');
     selectDate(`${y}-${m}-${d}`);
-
-    renderCalendar();
 }
 
 function selectDate(dateStr: string) {
@@ -76,7 +77,7 @@ function selectDate(dateStr: string) {
     hide('booking-form');
     Telegram.WebApp.MainButton.hide();
 
-    renderCalendar(); // Re-render to show selection
+    renderCalendar();
     loadSlots(dateStr);
 }
 
@@ -93,13 +94,11 @@ function renderCalendar() {
     const firstDay = new Date(year, month, 1).getDay() || 7;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    gridEl.innerHTML = '';
+    gridEl.innerHTML = ''; // Безопасная очистка
 
-    // Empty cells
-    // firstDay is 1-7 (Mon-Sun). We need empty cells for 1..(firstDay-1)
-    // If firstDay is 1 (Mon), loop runs 0 times. Correct.
+    // Пустые клетки
     for (let i = 1; i < firstDay; i++) {
-        gridEl.appendChild(document.createElement('div'));
+        gridEl.appendChild(createEl('div'));
     }
 
     const today = new Date();
@@ -117,9 +116,12 @@ function renderCalendar() {
 
         const isSelected = selectedDate === isoDate;
 
-        const cell = document.createElement('div');
-        cell.className = `day-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isPast ? 'disabled' : ''}`;
-        cell.textContent = d.toString();
+        let className = 'day-cell';
+        if (isToday) className += ' today';
+        if (isSelected) className += ' selected';
+        if (isPast) className += ' disabled';
+
+        const cell = createEl('div', className, d.toString());
 
         if (!isPast) {
             cell.onclick = () => selectDate(isoDate);
@@ -133,30 +135,31 @@ async function loadSlots(date: string) {
     const grid = $('slots-grid');
     if(!grid) return;
 
-    // Проверка, что услуга выбрана (она должна быть, раз мы здесь)
+    grid.innerHTML = ''; // Очистка
+
     if (!selectedService) {
-        grid.innerHTML = '<div class="col-span-4 text-center text-error">Ошибка: Услуга не выбрана</div>';
+        grid.appendChild(createEl('div', 'col-span-4 text-center text-error', 'Ошибка: Услуга не выбрана'));
         return;
     }
 
-    grid.innerHTML = '<div class="col-span-4 text-center text-secondary text-sm py-4">Поиск окошек...</div>';
+    // Показываем лоадер через DOM API
+    grid.appendChild(createEl('div', 'col-span-4 text-center text-secondary text-sm py-4', 'Поиск окошек...'));
 
     try {
-        // Добавляем service_id для проверки длительности
         const slots = await apiFetch<string[]>(`/masters/${masterId}/availability?date=${date}&service_id=${selectedService.id}`);
 
-        grid.innerHTML = '';
+        grid.innerHTML = ''; // Убираем лоадер
 
         if (slots.length === 0) {
-            grid.innerHTML = '<div class="col-span-4 text-center text-secondary/50 text-sm py-2">Нет мест</div>';
+            grid.appendChild(createEl('div', 'col-span-4 text-center text-secondary/50 text-sm py-2', 'Нет мест'));
             return;
         }
 
         slots.forEach((isoTime) => {
             const time = new Date(isoTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: masterTimezone });
-            const btn = document.createElement('button');
-            btn.className = 'slot-btn';
-            btn.textContent = time;
+
+            const btn = createEl('button', 'slot-btn', time);
+
             btn.onclick = () => {
                 document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
@@ -166,7 +169,8 @@ async function loadSlots(date: string) {
             grid.appendChild(btn);
         });
     } catch (e) {
-        grid.innerHTML = '<div class="col-span-4 text-center text-error text-sm">Ошибка</div>';
+        grid.innerHTML = '';
+        grid.appendChild(createEl('div', 'col-span-4 text-center text-error text-sm', 'Ошибка загрузки'));
     }
 }
 
@@ -207,7 +211,6 @@ async function submitBooking() {
 
         await apiFetch('/appointments', { method: 'POST', body: JSON.stringify(payload) });
 
-        // Success screen
         if (selectedDate && selectedSlot) {
             const dateObj = new Date(selectedSlot);
             const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: masterTimezone });
