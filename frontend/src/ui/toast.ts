@@ -1,25 +1,55 @@
-import { $, setText } from '../core/dom';
+import { $ } from '../core/dom';
 
-export function showToast(message: string, type: 'success' | 'error' = 'success') {
-    const toast = $('global-toast');
-    if (!toast) return;
+let toastTimeout: any;
 
-    const icon = $('toast-icon', toast);
-    const msg = $('toast-message', toast);
+export function showToast(msg: string, type: 'success' | 'error' = 'success') {
+    const el = $('toast');
+    const txt = $('toast-msg');
 
-    if (msg) setText('toast-message', message);
-    if (icon) {
-        // Убираем старые классы цвета, добавляем новые
-        icon.classList.remove('text-success', 'text-error');
-        icon.classList.add(type === 'success' ? 'text-success' : 'text-error');
-        icon.textContent = type === 'success' ? 'check_circle' : 'error';
+    // Пытаемся найти иконку внутри тоста
+    const icon = el?.querySelector('.material-symbols-rounded');
+
+    if (!el || !txt) {
+        console.warn('Toast element not found in DOM');
+        return;
     }
 
-    toast.classList.remove('opacity-0', '-translate-y-4', 'pointer-events-none');
+    // Сбрасываем таймер скрытия, если тост уже показан
+    if (toastTimeout) clearTimeout(toastTimeout);
 
-    // Сброс таймера если тост вызван повторно быстро (упрощенно)
-    const newTimer = setTimeout(() => {
-        toast.classList.add('opacity-0', '-translate-y-4', 'pointer-events-none');
+    // Устанавливаем текст
+    txt.textContent = msg;
+
+    // Сбрасываем классы скрытия (показываем элемент)
+    el.classList.remove('hidden', 'opacity-0', 'translate-y-[-20px]');
+
+    // Сбрасываем цвета
+    el.classList.remove('border-primary', 'border-error');
+    if (icon) icon.classList.remove('text-primary', 'text-error');
+
+    // Применяем стили в зависимости от типа
+    if (type === 'error') {
+        el.classList.add('border-error');
+        if (icon) {
+            icon.textContent = 'error'; // Иконка восклицательного знака
+            icon.classList.add('text-error');
+        }
+    } else {
+        el.classList.add('border-primary');
+        if (icon) {
+            icon.textContent = 'check_circle'; // Иконка галочки
+            icon.classList.add('text-primary');
+        }
+    }
+
+    // Запускаем таймер на скрытие через 3 секунды
+    toastTimeout = setTimeout(() => {
+        // Добавляем классы для анимации исчезновения
+        el.classList.add('opacity-0', 'translate-y-[-20px]');
+
+        // Полностью скрываем (display: none) после завершения CSS анимации (300мс)
+        setTimeout(() => {
+            el.classList.add('hidden');
+        }, 300);
     }, 3000);
-    (toast as any)._timer = newTimer;
 }
