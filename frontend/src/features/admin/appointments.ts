@@ -1,304 +1,266 @@
-import { $, setText } from '../../core/dom';
+import { $, show, hide, setText, showToast } from '../../core/dom';
 import { apiFetch } from '../../core/api';
-import { showToast } from '../../ui/toast';
-import { showConfirm } from '../../ui/modal';
-import { ICONS } from '../../ui/icons';
-import { Appointment } from '../../types';
 import { Telegram } from '../../core/tg';
 
-let appointmentsCache: Appointment[] = [];
-let selectedDate = new Date();
-let viewDate = new Date();
-let activeTab: Appointment['status'] = 'pending';
-let isPremium = false; // [NEW] Статус подписки
-
-const TABS = [
-    { id: 'pending', label: 'Ожидает' },
-    { id: 'confirmed', label: 'Подтвержденные' },
-    { id: 'completed', label: 'Завершенные' },
-    { id: 'cancelled', label: 'Отмененные' }
-];
-
-const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-const WEEK_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+let currentStatus = 'pending';
 
 export async function loadAppointments() {
-    // [NEW] Сначала узнаем статус подписки, чтобы правильно отрисовать табы
-    try {
-        const me = await apiFetch<any>('/me');
-        isPremium = me.profile.is_premium;
-    } catch {
-        isPremium = false;
-    }
-
-    renderTabs();
-    const list = $('appointments-list');
-    if(list) list.innerHTML = '<div class="text-center text-text-secondary py-8">Загрузка...</div>';
-
-    try {
-        appointmentsCache = await apiFetch<Appointment[]>('/me/appointments');
-        renderCalendar();
-        renderList();
-    } catch {
-        if(list) list.innerHTML = '<div class="text-center text-error">Ошибка сети</div>';
-    }
-}
-
-function renderTabs() {
-    const container = $('appointment-tabs');
-    if (!container) return;
-    container.innerHTML = '';
-
-    // [NEW] Фильтрация табов для Basic
-    const visibleTabs = isPremium
-        ? TABS
-        : TABS.filter(t => ['pending', 'confirmed'].includes(t.id));
-
-    // Если активный таб недоступен (например, переключились с Pro на Basic), сбрасываем на pending
-    if (!visibleTabs.find(t => t.id === activeTab)) {
-        activeTab = 'pending';
-    }
-
-    visibleTabs.forEach(tab => {
-        const btn = document.createElement('button');
-        const isActive = activeTab === tab.id;
-        btn.className = `whitespace-nowrap pb-3 text-xs font-bold uppercase tracking-wider transition-all relative flex-shrink-0 ${isActive ? 'text-primary' : 'text-text-secondary hover:text-white'}`;
-        btn.textContent = tab.label;
-        if (isActive) btn.innerHTML += '<span class="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full animate-in fade-in zoom-in duration-300"></span>';
-        btn.onclick = () => { activeTab = tab.id as any; renderTabs(); renderList(); };
-        container.appendChild(btn);
-    });
-}
-
-function changeMonth(offset: number) {
-    viewDate.setMonth(viewDate.getMonth() + offset);
-    renderCalendar();
-    renderList();
-}
-
-function renderCalendar() {
-    const container = $('calendar-container');
-    if (!container) return;
-
-    const busyDates = new Set(appointmentsCache
-        .filter(a => ['pending', 'confirmed'].includes(a.status))
-        .map(a => a.starts_at.split('T')[0]));
-
-    const year = viewDate.getFullYear();
-    const month = viewDate.getMonth();
-
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    let firstDay = new Date(year, month, 1).getDay() - 1;
-    if (firstDay === -1) firstDay = 6;
-
-    const todayStr = new Date().toDateString();
-    const selectedStr = selectedDate.toDateString();
-
-    let html = `
-        <div class="px-4 pt-4 pb-2">
-            <div class="flex justify-between items-center mb-3 px-2">
-                <h2 class="text-lg font-bold text-white capitalize">${MONTH_NAMES[month]} ${year}</h2>
-                <div class="flex gap-1">
-                    <button id="cal-prev" class="p-1.5 hover:bg-surface-dark/50 rounded-lg text-text-secondary active:bg-surface-dark transition-colors"><span class="material-symbols-outlined text-[20px]">chevron_left</span></button>
-                    <button id="cal-next" class="p-1.5 hover:bg-surface-dark/50 rounded-lg text-text-secondary active:bg-surface-dark transition-colors"><span class="material-symbols-outlined text-[20px]">chevron_right</span></button>
-                </div>
-            </div>
-            <div class="grid grid-cols-7 gap-1 text-center mb-2">
-                ${WEEK_DAYS.map(d => `<span class="text-[10px] font-bold text-text-secondary/60 uppercase tracking-wider">${d}</span>`).join('')}
-            </div>
-            <div class="grid grid-cols-7 gap-1">
-    `;
-
-    for (let i = 0; i < firstDay; i++) {
-        html += `<div class="h-9"></div>`;
-    }
-
-    for (let i = 1; i <= daysInMonth; i++) {
-        const currentDate = new Date(year, month, i);
-        const currentStr = currentDate.toDateString();
-
-        const y = currentDate.getFullYear();
-        const m = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const d = String(currentDate.getDate()).padStart(2, '0');
-        const isoDate = `${y}-${m}-${d}`;
-
-        const isSelected = currentStr === selectedStr;
-        const isToday = currentStr === todayStr;
-        const hasRecords = busyDates.has(isoDate);
-
-        let classes = "h-9 flex flex-col items-center justify-center rounded-lg text-sm font-medium transition-all relative ";
-        if (isSelected) classes += "bg-primary text-fixed-white shadow-md shadow-primary/20 scale-105";
-        else if (isToday) classes += "text-primary border border-primary/30";
-        else classes += "text-text-secondary hover:bg-surface-dark";
-
-        const dotColor = isSelected ? 'bg-white' : 'bg-primary';
-        const dot = hasRecords ? `<span class="w-1 h-1 rounded-full absolute bottom-1.5 ${dotColor}"></span>` : '';
-
-        html += `<button class="day-btn ${classes}" data-day="${i}"><span>${i}</span>${dot}</button>`;
-    }
-
-    html += `</div></div>`;
-    container.innerHTML = html;
-
-    const btnPrev = document.getElementById('cal-prev');
-    const btnNext = document.getElementById('cal-next');
-    if (btnPrev) btnPrev.onclick = () => changeMonth(-1);
-    if (btnNext) btnNext.onclick = () => changeMonth(1);
-
-    container.querySelectorAll('.day-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const day = parseInt((e.currentTarget as HTMLElement).dataset.day!);
-            selectedDate = new Date(year, month, day);
-            renderCalendar();
-            renderList();
-        });
-    });
-}
-
-function renderList() {
     const list = $('appointments-list');
     if (!list) return;
-    list.innerHTML = '';
 
-    let filtered: Appointment[] = [];
+    list.innerHTML = '<div class="text-center py-10"><span class="loader"></span></div>';
 
-    if (activeTab === 'completed' || activeTab === 'cancelled') {
-        const y = viewDate.getFullYear();
-        const m = String(viewDate.getMonth() + 1).padStart(2, '0');
-        const monthPrefix = `${y}-${m}`;
-        filtered = appointmentsCache.filter(a => a.starts_at.startsWith(monthPrefix) && a.status === activeTab);
-        filtered.sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
-    } else {
-        const y = selectedDate.getFullYear();
-        const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const d = String(selectedDate.getDate()).padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
-        filtered = appointmentsCache.filter(a => a.starts_at.startsWith(dateStr) && a.status === activeTab);
-        filtered.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
-    }
-
-    setText('tab-label', TABS.find(t => t.id === activeTab)?.label || '');
-    setText('tab-count', filtered.length.toString());
-
-    if (filtered.length === 0) {
-        list.innerHTML = '<div class="flex flex-col items-center justify-center py-20 text-center opacity-30 grayscale"><span class="material-symbols-outlined text-6xl text-text-secondary mb-4">event_note</span><p class="text-xs font-bold tracking-[0.3em] uppercase text-text-secondary">Нет записей</p></div>';
-        return;
-    }
-
-    filtered.forEach(a => list.appendChild(createCard(a)));
-}
-
-function createCard(a: Appointment): HTMLElement {
-    const el = document.createElement('div');
-    const dateObj = new Date(a.starts_at);
-
-    let timeDisplay = '';
-    if (activeTab === 'completed' || activeTab === 'cancelled') {
-        const day = String(dateObj.getDate()).padStart(2, '0');
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const time = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-        timeDisplay = `${day}.${month} ${time}`;
-    } else {
-        timeDisplay = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    }
-
-    const configs: any = {
-        pending: { label: 'ОЖИДАЕТ', color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-l-orange-500' },
-        confirmed: { label: 'ПОДТВЕРЖДЕНО', color: 'text-primary', bg: 'bg-primary/10', border: 'border-l-primary' },
-        completed: { label: 'ЗАВЕРШЕНО', color: 'text-success', bg: 'bg-success/10', border: 'border-l-success' },
-        cancelled: { label: 'ОТМЕНЕНО', color: 'text-error', bg: 'bg-error/10', border: 'border-l-error' }
-    };
-    const c = configs[a.status];
-
-    el.className = `relative bg-surface-dark rounded-2xl p-4 border border-border-dark flex flex-col gap-4 transition-all duration-300 border-l-4 ${c.border} animate-in fade-in slide-in-from-bottom-2`;
-
-    // [MODIFIED] Определение иконки для карточки записи
-    // Берем категорию из сервиса, если она там есть, иначе ставим собаку
-    const srv = a.services as any;
-    const icon = (srv?.category === 'cat') ? ICONS.Cat : ICONS.Pet;
-
-    el.innerHTML = `
-      <div class="flex justify-between items-center">
-        <div class="flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full ${a.status === 'pending' ? 'bg-orange-500 animate-pulse' : c.bg.replace('/10','')}"></span>
-          <span class="text-white font-bold text-xs">${timeDisplay}</span>
-        </div>
-        <span class="text-[10px] font-bold px-2 py-0.5 rounded ${c.bg} ${c.color}">${c.label}</span>
-      </div>
-      <div class="flex gap-4 items-start">
-        <div class="w-20 h-20 rounded-2xl bg-background-dark flex-shrink-0 border border-border-dark shadow-inner flex items-center justify-center text-text-secondary/60 text-2xl">${icon}</div>
-        <div class="flex-grow min-w-0 space-y-1">
-            <div class="flex flex-col"><span class="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Кличка</span><h3 class="text-lg font-bold truncate text-white leading-tight">${a.pet_name}</h3></div>
-            <div class="grid grid-cols-2 gap-2 mt-1">
-                <div class="flex flex-col"><span class="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Услуга</span><p class="text-white text-[11px] font-medium truncate">${a.services?.name || '---'}</p></div>
-                <div class="flex flex-col"><span class="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Порода</span><p class="text-white text-[11px] font-medium truncate">${a.pet_breed || '---'}</p></div>
-            </div>
-            <div class="pt-2 flex items-center gap-2">
-                <span class="text-[11px] text-text-secondary truncate font-medium">${a.client_name}</span>
-                <button class="btn-copy-phone text-primary text-[11px] font-bold hover:text-primary/80 flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer">${ICONS.Phone} ${a.client_phone}</button>
-            </div>
-        </div>
-      </div>
-      ${a.comment ? `<div class="bg-background-dark/50 rounded-xl p-3 border border-border-dark/50 mt-1 w-full overflow-hidden"><span class="text-[10px] text-primary font-bold uppercase tracking-wider block mb-1">Комментарий</span><p class="text-xs text-text-secondary leading-relaxed break-words whitespace-pre-wrap">${a.comment}</p></div>` : ''}
-      <div class="flex flex-col gap-2 actions-area"></div>
-    `;
-
-    const copyBtn = el.querySelector('.btn-copy-phone') as HTMLElement;
-    if (copyBtn) {
-        copyBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            navigator.clipboard.writeText(a.client_phone).then(() => showToast('Скопировано'));
-        });
-    }
-
-    const actions = el.querySelector('.actions-area')!;
-    const btnBox = document.createElement('div');
-    btnBox.className = 'flex gap-2';
-
-    const createBtn = (text: string, cls: string, onClick: () => void) => {
-        const b = document.createElement('button');
-        b.className = `flex-1 py-2.5 rounded-xl font-bold text-xs active:scale-[0.98] transition-all shadow-lg ${cls}`;
-        b.textContent = text;
-        b.onclick = async (e) => {
-            const t = e.target as HTMLButtonElement;
-            t.disabled = true;
-            t.innerHTML = '...';
-            await onClick();
-        };
-        return b;
-    };
-
-    if (a.status === 'pending') {
-        btnBox.appendChild(createBtn('Отменить', 'bg-background-dark text-text-secondary hover:text-error border border-border-dark', async () => updateStatus(a.id, 'cancel')));
-        btnBox.appendChild(createBtn('Подтвердить', 'bg-primary text-fixed-white hover:brightness-110 shadow-primary/20 flex-[2]', async () => updateStatus(a.id, 'confirm')));
-    } else if (a.status === 'confirmed') {
-        btnBox.appendChild(createBtn('Отменить', 'bg-background-dark text-text-secondary hover:text-error border border-border-dark', async () => updateStatus(a.id, 'cancel')));
-        btnBox.appendChild(createBtn('Завершить', 'bg-success text-fixed-white hover:brightness-110 shadow-success/20 flex-[2]', async () => updateStatus(a.id, 'complete')));
-    }
-
-    if (a.status === 'pending' || a.status === 'confirmed') actions.appendChild(btnBox);
-
-    const msgBtn = document.createElement('button');
-    msgBtn.className = 'w-full py-2.5 rounded-xl bg-background-dark text-text-secondary font-bold text-xs border border-border-dark flex items-center justify-center gap-2 hover:bg-surface-dark hover:text-white transition-all active:scale-[0.98]';
-    const isTg = !!a.client_username;
-    msgBtn.innerHTML = `<span class="${isTg ? 'text-[#29b6f6]' : 'text-success'}">${isTg ? ICONS.Telegram : ICONS.WhatsApp}</span> ${isTg ? 'Telegram' : 'WhatsApp'}`;
-    msgBtn.onclick = () => {
-        if (isTg) Telegram.WebApp.openTelegramLink(`https://t.me/${a.client_username}`);
-        else Telegram.WebApp.openLink(`https://wa.me/${a.client_phone.replace(/\D/g, '')}`);
-    };
-    actions.appendChild(msgBtn);
-
-    return el;
-}
-
-async function updateStatus(id: number, action: 'confirm' | 'cancel' | 'complete') {
-    if (action !== 'confirm' && !(await showConfirm(action === 'cancel' ? 'Отменить запись?' : 'Завершить услугу?'))) {
-        renderList();
-        return;
-    }
     try {
-        await apiFetch(`/me/appointments/${id}/${action}`, { method: 'POST' });
-        showToast(action === 'cancel' ? 'Отменено' : 'Успешно');
-        loadAppointments();
-    } catch { showToast('Ошибка', 'error'); renderList(); }
+        const allAppointments = await apiFetch<any[]>('/me/appointments');
+
+        // Фильтрация
+        const filtered = allAppointments.filter(a => a.status === currentStatus);
+
+        // Обновление счетчика
+        setText('tab-count', filtered.length.toString());
+        setText('tab-label', getStatusLabel(currentStatus));
+
+        list.innerHTML = ''; // Очистка
+
+        if (filtered.length === 0) {
+            list.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-10 text-text-secondary opacity-50">
+                    <span class="material-symbols-outlined text-4xl mb-2">event_busy</span>
+                    <p class="text-sm font-bold">Нет записей</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Рендер карточек (БЕЗОПАСНО)
+        filtered.forEach(appt => {
+            const card = createAppointmentCard(appt);
+            list.appendChild(card);
+        });
+
+    } catch (e) {
+        console.error(e);
+        list.innerHTML = '<p class="text-error text-center py-4">Ошибка загрузки</p>';
+    }
+}
+
+function createAppointmentCard(appt: any) {
+    const card = document.createElement('div');
+    card.className = "bg-surface-dark border border-border-dark p-4 rounded-2xl space-y-3 relative overflow-hidden";
+
+    // Статус-бар слева (цветной)
+    const statusColor = getStatusColor(appt.status);
+    const borderLeft = document.createElement('div');
+    borderLeft.className = `absolute left-0 top-0 bottom-0 w-1 ${statusColor}`;
+    card.appendChild(borderLeft);
+
+    // 1. Верхняя часть: Время и Дата
+    const timeRow = document.createElement('div');
+    timeRow.className = "flex justify-between items-center mb-1";
+
+    // Форматирование даты
+    const dateObj = new Date(appt.starts_at);
+    const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
+
+    const timeEl = document.createElement('div');
+    timeEl.className = "flex items-baseline gap-2";
+
+    const timeBig = document.createElement('span');
+    timeBig.className = "text-2xl font-black text-white tracking-tight";
+    timeBig.textContent = timeStr;
+
+    const dateSmall = document.createElement('span');
+    dateSmall.className = "text-xs font-bold text-text-secondary uppercase";
+    dateSmall.textContent = dateStr;
+
+    timeEl.appendChild(timeBig);
+    timeEl.appendChild(dateSmall);
+    timeRow.appendChild(timeEl);
+
+    // Цена/Длительность
+    const priceBadge = document.createElement('div');
+    priceBadge.className = "bg-background-dark px-2 py-1 rounded-lg border border-border-dark";
+    const priceText = document.createElement('span');
+    priceText.className = "text-xs font-bold text-primary";
+    // Проверка на наличие услуги (могла быть удалена)
+    const price = appt.services?.price || 0;
+    priceText.textContent = `${price} ₸`;
+    priceBadge.appendChild(priceText);
+
+    timeRow.appendChild(priceBadge);
+    card.appendChild(timeRow);
+
+    // 2. Услуга
+    const serviceName = document.createElement('h3');
+    serviceName.className = "text-white font-bold text-sm leading-tight";
+    serviceName.textContent = appt.services?.name || 'Услуга удалена'; // XSS Protection
+    card.appendChild(serviceName);
+
+    // 3. Клиент
+    const clientBlock = document.createElement('div');
+    clientBlock.className = "bg-background-dark/50 p-3 rounded-xl border border-border-dark/50 flex flex-col gap-1";
+
+    // Имя
+    const clientRow = document.createElement('div');
+    clientRow.className = "flex items-center gap-2";
+    clientRow.innerHTML = '<span class="material-symbols-outlined text-[16px] text-text-secondary">person</span>';
+
+    const clientName = document.createElement('span');
+    clientName.className = "text-sm font-bold text-white";
+    clientName.textContent = appt.client_name || 'Клиент без имени'; // XSS Protection
+
+    // Юзернейм (ссылка)
+    if (appt.client_username) {
+        const tgLink = document.createElement('a');
+        tgLink.href = `https://t.me/${appt.client_username}`;
+        tgLink.target = "_blank";
+        tgLink.className = "text-xs text-primary hover:underline ml-1";
+        tgLink.textContent = `@${appt.client_username}`;
+        clientName.appendChild(tgLink);
+    }
+    clientRow.appendChild(clientName);
+    clientBlock.appendChild(clientRow);
+
+    // Телефон (ссылка)
+    const phoneRow = document.createElement('div');
+    phoneRow.className = "flex items-center gap-2";
+    phoneRow.innerHTML = '<span class="material-symbols-outlined text-[16px] text-text-secondary">call</span>';
+
+    const phoneLink = document.createElement('a');
+    phoneLink.href = `tel:${appt.client_phone}`; // Safe attribute
+    phoneLink.className = "text-xs font-mono text-text-secondary font-bold hover:text-white transition-colors";
+    phoneLink.textContent = appt.client_phone;
+
+    phoneRow.appendChild(phoneLink);
+    clientBlock.appendChild(phoneRow);
+
+    card.appendChild(clientBlock);
+
+    // 4. Питомец и Комментарий
+    if (appt.pet_name || appt.comment) {
+        const extraBlock = document.createElement('div');
+        extraBlock.className = "flex flex-col gap-1 pl-1";
+
+        if (appt.pet_name) {
+            const petRow = document.createElement('div');
+            petRow.className = "flex items-center gap-2 text-xs text-text-secondary";
+            petRow.innerHTML = '<span class="material-symbols-outlined text-[14px]">pets</span>';
+            const petText = document.createElement('span');
+            petText.textContent = `${appt.pet_name} ${appt.pet_breed ? `(${appt.pet_breed})` : ''}`; // XSS Protection
+            petRow.appendChild(petText);
+            extraBlock.appendChild(petRow);
+        }
+
+        if (appt.comment) {
+            const commentRow = document.createElement('div');
+            commentRow.className = "flex items-start gap-2 text-xs text-text-secondary italic mt-1";
+            commentRow.innerHTML = '<span class="material-symbols-outlined text-[14px] mt-0.5">chat</span>';
+            const commentText = document.createElement('span');
+            commentText.textContent = appt.comment; // XSS Protection
+            commentRow.appendChild(commentText);
+            extraBlock.appendChild(commentRow);
+        }
+        card.appendChild(extraBlock);
+    }
+
+    // 5. Действия (Кнопки)
+    const actions = document.createElement('div');
+    actions.className = "grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-border-dark/30";
+
+    if (appt.status === 'pending') {
+        const btnCancel = createBtn('Отказать', 'bg-surface-dark border border-border-dark text-white', () => action(appt.id, 'cancel'));
+        const btnConfirm = createBtn('Подтвердить', 'bg-primary text-fixed-white shadow-lg shadow-primary/20', () => action(appt.id, 'confirm'));
+        actions.appendChild(btnCancel);
+        actions.appendChild(btnConfirm);
+    } else if (appt.status === 'confirmed') {
+        const btnCancel = createBtn('Отменить', 'bg-surface-dark border border-border-dark text-error', () => action(appt.id, 'cancel'));
+        const btnComplete = createBtn('Завершить', 'bg-success text-fixed-white shadow-lg shadow-success/20', () => action(appt.id, 'complete'));
+        actions.appendChild(btnCancel);
+        actions.appendChild(btnComplete);
+    } else {
+        // Для завершенных/отмененных кнопок нет
+        actions.remove();
+        return card; // Ранний выход
+    }
+
+    card.appendChild(actions);
+    return card;
+}
+
+function createBtn(text: string, classes: string, onClick: () => void) {
+    const btn = document.createElement('button');
+    btn.className = `py-3 rounded-xl text-sm font-bold active:scale-[0.98] transition-all ${classes}`;
+    btn.textContent = text;
+    btn.onclick = onClick;
+    return btn;
+}
+
+// Хендлер действий
+async function action(id: number, type: 'confirm' | 'cancel' | 'complete') {
+    if (type === 'cancel' && !confirm('Точно отменить запись?')) return;
+    if (type === 'complete' && !confirm('Завершить запись?')) return;
+
+    try {
+        await apiFetch(`/me/appointments/${id}/${type}`, { method: 'POST' });
+        showToast('Статус обновлен');
+        loadAppointments(); // Перезагрузка списка
+    } catch (e) {
+        showToast('Ошибка обновления', 'error');
+    }
+}
+
+function getStatusLabel(status: string) {
+    switch(status) {
+        case 'pending': return 'ОЖИДАЕТ';
+        case 'confirmed': return 'АКТИВНЫЕ';
+        case 'completed': return 'АРХИВ';
+        case 'cancelled': return 'ОТМЕНА';
+        default: return '';
+    }
+}
+
+function getStatusColor(status: string) {
+    switch(status) {
+        case 'pending': return 'bg-primary';
+        case 'confirmed': return 'bg-success';
+        case 'cancelled': return 'bg-error';
+        default: return 'bg-text-secondary';
+    }
+}
+
+// Инициализация табов
+export function initAppointmentHandlers() {
+    const tabs = document.getElementById('appointment-tabs');
+    if (!tabs) return;
+
+    // Генерация табов
+    const states = [
+        { id: 'pending', label: 'Заявки', icon: 'notifications_active' },
+        { id: 'confirmed', label: 'Записи', icon: 'event' },
+        { id: 'completed', label: 'История', icon: 'history' },
+        { id: 'cancelled', label: 'Отмены', icon: 'cancel' }
+    ];
+
+    tabs.innerHTML = '';
+    states.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = `flex items-center gap-1 px-4 py-2 rounded-full border border-border-dark text-xs font-bold transition-all whitespace-nowrap ${currentStatus === s.id ? 'bg-primary text-fixed-white border-primary' : 'bg-surface-dark text-text-secondary'}`;
+        btn.innerHTML = `<span class="material-symbols-outlined text-sm">${s.icon}</span> ${s.label}`;
+
+        btn.onclick = () => {
+            currentStatus = s.id;
+            // Обновляем UI кнопок
+            Array.from(tabs.children).forEach((child: any) => {
+                child.className = `flex items-center gap-1 px-4 py-2 rounded-full border border-border-dark text-xs font-bold transition-all whitespace-nowrap bg-surface-dark text-text-secondary`;
+            });
+            btn.className = `flex items-center gap-1 px-4 py-2 rounded-full border border-primary text-fixed-white text-xs font-bold transition-all whitespace-nowrap bg-primary`;
+
+            loadAppointments();
+        };
+        tabs.appendChild(btn);
+    });
+
+    // Изначально подсвечиваем активный
+    (tabs.children[0] as HTMLElement).click();
 }

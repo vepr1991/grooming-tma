@@ -17,36 +17,62 @@ export async function loadAnalytics() {
 
         hide(lock);
         show(content);
-        content.classList.add('flex'); // Восстанавливаем flex
+        content.classList.add('flex');
 
         // 1. KPI
         setText('an-revenue', `${data.kpi.revenue.toLocaleString()} ₸`);
         setText('an-avg', `${data.kpi.avg_check.toLocaleString()} ₸`);
 
-        // 2. Топ услуг
+        // 2. Топ услуг (SECURE FIX)
         const topContainer = $('an-top-services');
         if (topContainer) {
-            topContainer.innerHTML = '';
+            topContainer.innerHTML = ''; // Очистка безопасна
             const max = Math.max(...data.top_services.map((s:any) => s.count)) || 1;
 
             if (data.top_services.length === 0) {
-                 topContainer.innerHTML = '<p class="text-xs text-text-secondary text-center">Нет данных</p>';
-            }
+                 const p = document.createElement('p');
+                 p.className = "text-xs text-text-secondary text-center";
+                 p.textContent = "Нет данных";
+                 topContainer.appendChild(p);
+            } else {
+                data.top_services.forEach((s: any) => {
+                    const percent = (s.count / max) * 100;
 
-            data.top_services.forEach((s: any) => {
-                const percent = (s.count / max) * 100;
-                topContainer.innerHTML += `
-                    <div class="flex flex-col gap-1.5">
-                        <div class="flex justify-between items-center text-xs">
-                            <span class="text-white font-medium truncate pr-4">${s.name}</span>
-                            <span class="text-text-secondary font-bold">${s.count} зап.</span>
-                        </div>
-                        <div class="w-full bg-background-dark h-2 rounded-full overflow-hidden">
-                            <div class="h-full bg-primary transition-all duration-1000 ease-out" style="width: ${percent}%"></div>
-                        </div>
-                    </div>
-                `;
-            });
+                    // Создаем контейнер
+                    const item = document.createElement('div');
+                    item.className = "flex flex-col gap-1.5";
+
+                    // Верхняя строка (Имя + Кол-во)
+                    const header = document.createElement('div');
+                    header.className = "flex justify-between items-center text-xs";
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = "text-white font-medium truncate pr-4";
+                    nameSpan.textContent = s.name; // БЕЗОПАСНО
+
+                    const countSpan = document.createElement('span');
+                    countSpan.className = "text-text-secondary font-bold";
+                    countSpan.textContent = `${s.count} зап.`;
+
+                    header.appendChild(nameSpan);
+                    header.appendChild(countSpan);
+
+                    // Прогресс бар
+                    const barBg = document.createElement('div');
+                    barBg.className = "w-full bg-background-dark h-2 rounded-full overflow-hidden";
+
+                    const barFill = document.createElement('div');
+                    barFill.className = "h-full bg-primary transition-all duration-1000 ease-out";
+                    barFill.style.width = `${percent}%`;
+
+                    barBg.appendChild(barFill);
+
+                    item.appendChild(header);
+                    item.appendChild(barBg);
+
+                    topContainer.appendChild(item);
+                });
+            }
         }
 
         // 3. Bar Chart (Динамика)
@@ -56,42 +82,44 @@ export async function loadAnalytics() {
             barsContainer.innerHTML = '';
             labelsContainer.innerHTML = '';
 
-            const maxVal = Math.max(...data.daily_dynamics.map((d:any) => d.value)) || 5; // Минимум 5 для масштаба
+            const maxVal = Math.max(...data.daily_dynamics.map((d:any) => d.value)) || 5;
 
             data.daily_dynamics.forEach((day: any) => {
                 const height = (day.value / maxVal) * 100;
                 const color = day.is_today ? 'bg-primary' : 'bg-primary/40';
 
                 // Столбик
-                barsContainer.innerHTML += `
-                    <div class="w-full bg-background-dark/30 rounded-t-lg relative group flex items-end justify-center h-full">
-                         <div class="${color} w-full mx-1 rounded-t-md transition-all duration-700 ease-out relative group-hover:brightness-110" style="height: ${height || 5}%">
-                            <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-surface-dark border border-border-dark px-2 py-1 rounded text-[10px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none shadow-xl">
-                                ${day.value} зап.
-                            </div>
-                         </div>
-                    </div>
-                `;
+                const barWrapper = document.createElement('div');
+                barWrapper.className = "w-full bg-background-dark/30 rounded-t-lg relative group flex items-end justify-center h-full";
+
+                const bar = document.createElement('div');
+                bar.className = `${color} w-full mx-1 rounded-t-md transition-all duration-700 ease-out relative group-hover:brightness-110`;
+                bar.style.height = `${height || 5}%`;
+
+                const tooltip = document.createElement('div');
+                tooltip.className = "absolute -top-8 left-1/2 -translate-x-1/2 bg-surface-dark border border-border-dark px-2 py-1 rounded text-[10px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none shadow-xl";
+                tooltip.textContent = `${day.value} зап.`;
+
+                bar.appendChild(tooltip);
+                barWrapper.appendChild(bar);
+                barsContainer.appendChild(barWrapper);
+
                 // Подпись
-                labelsContainer.innerHTML += `
-                    <span class="text-[9px] text-text-secondary font-bold uppercase w-full text-center truncate">${day.day.split(' ')[0]}</span>
-                `;
+                const label = document.createElement('span');
+                label.className = "text-[9px] text-text-secondary font-bold uppercase w-full text-center truncate";
+                label.textContent = day.day.split(' ')[0];
+                labelsContainer.appendChild(label);
             });
         }
 
-        // 4. Pie Chart (Круговая)
+        // 4. Pie Chart
         const s = data.status_distribution;
         const total = s.completed + s.cancelled + s.pending;
         setText('an-total-count', total.toString());
 
         if (total > 0) {
-            // Считаем градусы для conic-gradient
             const degCompleted = (s.completed / total) * 360;
             const degPending = (s.pending / total) * 360;
-            // УДАЛЕНО: const degCancelled = ... (не использовалась)
-
-            // Формируем градиент:
-            // Зеленый (0 -> A), Синий (A -> A+B), Красный (A+B -> 360)
             const p1 = degCompleted;
             const p2 = degCompleted + degPending;
 
@@ -104,14 +132,12 @@ export async function loadAnalytics() {
                 )`;
             }
 
-            // Легенда
             const legend = $('an-pie-legend');
             if (legend) {
-                legend.innerHTML = `
-                    ${createLegendItem('Завершено', s.completed, total, 'bg-success')}
-                    ${createLegendItem('В ожидании', s.pending, total, 'bg-primary')}
-                    ${createLegendItem('Отменено', s.cancelled, total, 'bg-error')}
-                `;
+                legend.innerHTML = ''; // Чистим
+                legend.appendChild(createLegendItem('Завершено', s.completed, total, 'bg-success'));
+                legend.appendChild(createLegendItem('В ожидании', s.pending, total, 'bg-primary'));
+                legend.appendChild(createLegendItem('Отменено', s.cancelled, total, 'bg-error'));
             }
         }
 
@@ -125,15 +151,32 @@ export async function loadAnalytics() {
 }
 
 function createLegendItem(label: string, val: number, total: number, bgClass: string) {
-    if (val === 0) return '';
+    if (val === 0) return document.createDocumentFragment(); // Пустой элемент
+
     const percent = Math.round((val / total) * 100);
-    return `
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <div class="w-2.5 h-2.5 rounded-full ${bgClass}"></div>
-                <span class="text-xs text-text-secondary font-medium">${label}</span>
-            </div>
-            <span class="text-xs font-bold text-white">${val} (${percent}%)</span>
-        </div>
-    `;
+
+    const container = document.createElement('div');
+    container.className = "flex items-center justify-between";
+
+    const left = document.createElement('div');
+    left.className = "flex items-center gap-2";
+
+    const dot = document.createElement('div');
+    dot.className = `w-2.5 h-2.5 rounded-full ${bgClass}`;
+
+    const textLabel = document.createElement('span');
+    textLabel.className = "text-xs text-text-secondary font-medium";
+    textLabel.textContent = label;
+
+    left.appendChild(dot);
+    left.appendChild(textLabel);
+
+    const right = document.createElement('span');
+    right.className = "text-xs font-bold text-white";
+    right.textContent = `${val} (${percent}%)`;
+
+    container.appendChild(left);
+    container.appendChild(right);
+
+    return container;
 }
