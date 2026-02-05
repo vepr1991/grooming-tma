@@ -195,6 +195,20 @@ async def get_master_availability(master_id: int, service_id: int, date: str):
     return free_slots
 
 
+# [NEW] Эндпоинт для просмотра своих записей клиентом
+@router.get("/my-appointments")
+async def get_client_appointments(user=Depends(validate_telegram_data)):
+    # Выбираем записи текущего пользователя
+    # Подтягиваем данные о мастере и услуге, чтобы показать красивую карточку
+    res = supabase.table("appointments") \
+        .select("*, services(name, price, duration_min), masters(salon_name, address, phone, avatar_url)") \
+        .eq("client_telegram_id", user['id']) \
+        .order("starts_at", desc=True) \
+        .limit(20) \
+        .execute()
+
+    return res.data
+
 @router.post("/appointments")
 async def create_appointment_public(
         app_data: AppointmentCreate,

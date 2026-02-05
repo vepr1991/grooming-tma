@@ -67,7 +67,9 @@
                 <span class="material-symbols-rounded">close</span>
             </button>
             <h1 class="text-lg font-bold text-white tracking-wide">Запись онлайн</h1>
-            <div class="w-8"></div>
+            <button id="btn-open-my-appointments" class="p-2 -mr-2 text-primary hover:text-white transition-colors">
+                <span class="material-symbols-rounded">history</span>
+            </button>
         </header>
 
         <div class="flex flex-col items-center pt-20 pb-6 px-6 text-center w-full">
@@ -140,7 +142,7 @@
             <div id="slots-grid" class="grid grid-cols-4 gap-2"></div>
         </div>
 
-        <div id="booking-form" class="px-4 space-y-4 hidden">
+        <div id="booking-form" class="px-4 space-y-4 hidden pb-10">
             <h3 class="text-sm font-bold text-secondary uppercase tracking-wider">Детали записи</h3>
             <div class="space-y-4">
                 <div class="group">
@@ -163,7 +165,30 @@
                     <label class="block text-xs font-bold text-secondary mb-1.5 ml-1">КОММЕНТАРИЙ</label>
                     <textarea id="inp-comment" rows="2" class="w-full bg-surface border-2 border-border focus:border-primary rounded-xl p-4 text-white font-bold outline-none transition-all placeholder-secondary/30 resize-none" placeholder="Особенности, пожелания..."></textarea>
                 </div>
+
+                <label class="flex items-start gap-3 p-2 cursor-pointer group">
+                    <div class="relative flex items-center mt-0.5">
+                        <input type="checkbox" id="inp-agreement" class="peer h-5 w-5 cursor-pointer appearance-none rounded border-2 border-border transition-all checked:border-primary checked:bg-primary">
+                        <span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 pointer-events-none material-symbols-rounded text-sm font-bold">check</span>
+                    </div>
+                    <span class="text-xs text-secondary leading-tight select-none group-active:text-white transition-colors">
+                        Я согласен с <a href="#" class="text-primary hover:underline" onclick="event.stopPropagation(); Telegram.WebApp.showAlert('Здесь будет текст оферты')">условиями оферты</a> и политикой обработки персональных данных.
+                    </span>
+                </label>
             </div>
+        </div>
+    </div>
+
+    <div id="view-my-appointments" class="hidden min-h-screen bg-bg flex-col pt-4 pb-10">
+        <header class="px-4 mb-6 sticky top-0 bg-bg/95 backdrop-blur z-20 py-2">
+            <button onclick="goBack()" class="flex items-center gap-1 text-secondary hover:text-white transition-colors mb-2">
+                <span class="material-symbols-rounded text-xl">arrow_back</span>
+                <span class="text-sm font-bold">На главную</span>
+            </button>
+            <h2 class="text-2xl font-bold text-white">Мои записи</h2>
+        </header>
+        <div id="my-appointments-list" class="px-4 flex flex-col gap-3">
+            <div class="text-center text-secondary py-10">Загрузка...</div>
         </div>
     </div>
 

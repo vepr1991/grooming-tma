@@ -63,7 +63,6 @@ export function openBooking(service: Service, onBack: () => void) {
     Telegram.WebApp.BackButton.onClick(closeBooking);
 
     viewDate = new Date();
-    // Авто-выбор сегодняшней даты
     const today = new Date();
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
@@ -94,9 +93,8 @@ function renderCalendar() {
     const firstDay = new Date(year, month, 1).getDay() || 7;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    gridEl.innerHTML = ''; // Безопасная очистка
+    gridEl.innerHTML = '';
 
-    // Пустые клетки
     for (let i = 1; i < firstDay; i++) {
         gridEl.appendChild(createEl('div'));
     }
@@ -135,20 +133,19 @@ async function loadSlots(date: string) {
     const grid = $('slots-grid');
     if(!grid) return;
 
-    grid.innerHTML = ''; // Очистка
+    grid.innerHTML = '';
 
     if (!selectedService) {
         grid.appendChild(createEl('div', 'col-span-4 text-center text-error', 'Ошибка: Услуга не выбрана'));
         return;
     }
 
-    // Показываем лоадер через DOM API
     grid.appendChild(createEl('div', 'col-span-4 text-center text-secondary text-sm py-4', 'Поиск окошек...'));
 
     try {
         const slots = await apiFetch<string[]>(`/masters/${masterId}/availability?date=${date}&service_id=${selectedService.id}`);
 
-        grid.innerHTML = ''; // Убираем лоадер
+        grid.innerHTML = '';
 
         if (slots.length === 0) {
             grid.appendChild(createEl('div', 'col-span-4 text-center text-secondary/50 text-sm py-2', 'Нет мест'));
@@ -189,8 +186,16 @@ async function submitBooking() {
     const name = getVal('inp-client-name').trim();
     const phone = getVal('inp-phone').trim();
 
+    // [NEW] Проверка чекбокса
+    const agreement = ($('inp-agreement') as HTMLInputElement)?.checked;
+
     if (!name || phone.length < 10) {
         Telegram.WebApp.showAlert('Введите имя и телефон');
+        return;
+    }
+
+    if (!agreement) {
+        Telegram.WebApp.showAlert('Вы должны согласиться с условиями оферты');
         return;
     }
 
