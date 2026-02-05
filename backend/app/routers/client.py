@@ -1,11 +1,11 @@
 # (c) 2026 Владимир Коваленко. Все права защищены.
 from fastapi import APIRouter, Depends, HTTPException
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import pytz
 
 from app.auth import validate_telegram_data
 from app.db import supabase
-# [NEW] Добавили импорт escape_html
+# Не забываем про нашу защиту от XSS
 from app.utils import send_telegram_message, escape_html
 from app.schemas.appointment import AppointmentCreate
 from app.services.appointment_service import AppointmentService
@@ -15,7 +15,7 @@ router = APIRouter(tags=["Client"])
 
 @router.get("/masters/{master_id}")
 async def get_master_public_profile(master_id: int):
-    # Добавляем is_premium в выборку
+    # Выбираем только публичные поля
     res = supabase.table("masters") \
         .select("salon_name, description, avatar_url, address, phone, timezone, photos, is_premium") \
         .eq("telegram_id", master_id) \
@@ -28,25 +28,38 @@ async def get_master_public_profile(master_id: int):
 @router.get("/masters/{master_id}/services")
 async def get_master_services(master_id: int):
     res = supabase.table("services") \
-        .select("*") \
+        .select("id, name, price, duration_min, description, category") \
         .eq("master_telegram_id", master_id) \
         .eq("is_active", True) \
+        .order("price") \
         .execute()
     return res.data
 
 
 @router.get("/masters/{master_id}/schedule")
 async def get_master_schedule(master_id: int):
-    res = supabase.table("working_hours").select("day_of_week, start_time, end_time").eq("master_telegram_id",
-                                                                                         master_id).execute()
+    # Клиенту нужно знать только дни и время работы
+    res = supabase.table("working_hours") \
+        .select("day_of_week, start_time, end_time") \
+        .eq("master_telegram_id", master_id) \
+        .execute()
     return res.data
 
 
 @router.get("/masters/{master_id}/availability")
 async def get_master_availability(master_id: int, service_id: int, date: str):
-    # 1. Получаем настройки мастера
-    master_res = supabase.table("masters").select("timezone, is_premium").eq("telegram_id",
-                                                                             master_id).single().execute()
+    """
+    Оптимизированный поиск слотов.
+    Сложность снижена с O(N*M) до O(N+M) за счет сортировки и линейного прохода.
+    """
+    # 1. Параллельная загрузка данных (в идеале), но здесь делаем последовательно, но эффективно.
+    # Загружаем таймзону и премиум статус (легкий запрос)
+    master_res = supabase.table("masters") \
+        .select("timezone, is_premium") \
+        .eq("telegram_id", master_id) \
+        .single() \
+        .execute()
+
     if not master_res.data:
         raise HTTPException(404, "Master not found")
 
@@ -54,54 +67,70 @@ async def get_master_availability(master_id: int, service_id: int, date: str):
     tz_name = master_data.get('timezone', 'Asia/Almaty')
     is_premium = master_data.get('is_premium', False)
 
-    # 1.1 Получаем длительность запрашиваемой услуги
-    srv_res = supabase.table("services").select("duration_min").eq("id", service_id).single().execute()
-    if not srv_res.data:
-        raise HTTPException(404, "Service not found")
-    requested_duration = srv_res.data.get('duration_min', 60)
-
     try:
         master_tz = pytz.timezone(tz_name)
     except pytz.UnknownTimeZoneError:
         master_tz = pytz.timezone('Asia/Almaty')
 
+    # 2. Валидация даты
     try:
         naive_date = datetime.strptime(date, "%Y-%m-%d")
-        target_date = master_tz.localize(naive_date)
+        target_date_start = master_tz.localize(naive_date)
+        # Конец дня (23:59:59)
+        target_date_end = target_date_start + timedelta(days=1) - timedelta(seconds=1)
     except ValueError:
         raise HTTPException(400, "Invalid date format YYYY-MM-DD")
 
-    # 2. Генерируем сетку
-    weekday_iso = target_date.isoweekday()
+    # Нельзя смотреть прошлое (оптимизация)
+    now_in_tz = datetime.now(master_tz)
+    if target_date_end < now_in_tz:
+        return []
+
+    # 3. Получаем длительность услуги
+    srv_res = supabase.table("services").select("duration_min").eq("id", service_id).single().execute()
+    if not srv_res.data:
+        raise HTTPException(404, "Service not found")
+    duration = srv_res.data.get('duration_min', 60)
+
+    # 4. Получаем график на этот день недели
+    weekday_iso = target_date_start.isoweekday()  # 1=Mon, 7=Sun
     wh_res = supabase.table("working_hours") \
-        .select("*") \
+        .select("start_time, end_time, slot_minutes") \
         .eq("master_telegram_id", master_id) \
         .eq("day_of_week", weekday_iso) \
+        .maybe_single() \
         .execute()
 
     if not wh_res.data:
-        return []
+        return []  # Мастер не работает в этот день
 
-    schedule = wh_res.data[0]
+    schedule = wh_res.data
+    slot_step = 30 if not is_premium else schedule.get('slot_minutes', 30)
 
-    db_slot = schedule.get('slot_minutes', 30)
-    slot_min = 30 if not is_premium else db_slot
+    # Парсим время начала и конца работы
+    # start_time строка вида "09:00:00"
+    def parse_time_to_dt(time_str, base_date):
+        t = datetime.strptime(time_str, "%H:%M:%S").time()
+        return base_date.replace(hour=t.hour, minute=t.minute, second=0)
 
-    start_parts = list(map(int, schedule['start_time'].split(':')))
-    end_parts = list(map(int, schedule['end_time'].split(':')))
+    work_start_dt = parse_time_to_dt(schedule['start_time'], target_date_start)
+    work_end_dt = parse_time_to_dt(schedule['end_time'], target_date_start)
 
-    work_start = target_date.replace(hour=start_parts[0], minute=start_parts[1], second=0)
-    work_end = target_date.replace(hour=end_parts[0], minute=end_parts[1], second=0)
+    # Корректировка, если смотрим "сегодня" - нельзя записаться в прошлое
+    if work_start_dt < now_in_tz:
+        # Округляем текущее время до следующего слота
+        # Например, сейчас 14:12, шаг 30 -> начало в 14:30
+        minute_remainder = now_in_tz.minute % slot_step
+        minutes_to_add = slot_step - minute_remainder
+        next_slot_time = now_in_tz + timedelta(minutes=minutes_to_add)
+        next_slot_time = next_slot_time.replace(second=0, microsecond=0)
 
-    potential_slots = []
-    current = work_start
-    while current < work_end:
-        potential_slots.append(current)
-        current += timedelta(minutes=slot_min)
+        work_start_dt = max(work_start_dt, next_slot_time)
 
-    # 3. Получаем занятые интервалы
-    day_start_utc = target_date.astimezone(pytz.utc)
-    day_end_utc = (target_date + timedelta(days=1)).astimezone(pytz.utc)
+    # 5. Загружаем занятые интервалы (Appointments)
+    # Конвертируем диапазон дня в UTC для запроса к БД
+    day_start_utc = target_date_start.astimezone(pytz.utc)
+    day_end_utc = target_date_end.astimezone(pytz.utc)
 
     busy_res = supabase.table("appointments") \
         .select("starts_at, services(duration_min)") \
@@ -109,67 +138,87 @@ async def get_master_availability(master_id: int, service_id: int, date: str):
         .neq("status", "cancelled") \
         .gte("starts_at", day_start_utc.isoformat()) \
         .lt("starts_at", day_end_utc.isoformat()) \
+        .order("starts_at") \
         .execute()
 
+    # Формируем список занятых интервалов [(start, end), ...]
     busy_intervals = []
-    for b in busy_res.data:
-        t_str = b['starts_at'].replace('Z', '+00:00')
-        try:
-            appt_start = datetime.fromisoformat(t_str).astimezone(master_tz)
-            duration = 60
-            if b.get('services') and b['services'].get('duration_min'):
-                duration = b['services']['duration_min']
+    for appt in busy_res.data:
+        utc_start = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
+        local_start = utc_start.astimezone(master_tz)
 
-            appt_end = appt_start + timedelta(minutes=duration)
-            busy_intervals.append((appt_start, appt_end))
-        except ValueError:
-            pass
+        srv_dur = 60
+        if appt.get('services') and appt['services'].get('duration_min'):
+            srv_dur = appt['services']['duration_min']
 
-    # 4. Фильтруем слоты
-    now_in_master_tz = datetime.now(master_tz)
+        local_end = local_start + timedelta(minutes=srv_dur)
+        busy_intervals.append((local_start, local_end))
+
+    # 6. Алгоритм генерации слотов (Linear Scan)
     free_slots = []
+    current_slot = work_start_dt
 
-    for slot in potential_slots:
-        if slot <= now_in_master_tz:
-            continue
+    # Индекс текущего занятого интервала, который мы проверяем
+    busy_idx = 0
+    total_busy = len(busy_intervals)
 
-        requested_end = slot + timedelta(minutes=requested_duration)
+    while current_slot + timedelta(minutes=duration) <= work_end_dt:
+        slot_end = current_slot + timedelta(minutes=duration)
+        is_busy = False
 
-        if requested_end > work_end:
-            continue
+        # Проверяем пересечение с занятыми интервалами
+        # Так как busy_intervals отсортированы, мы можем не проверять старые
+        while busy_idx < total_busy:
+            busy_start, busy_end = busy_intervals[busy_idx]
 
-        is_overlap = False
-        for (busy_start, busy_end) in busy_intervals:
-            if slot < busy_end and busy_start < requested_end:
-                is_overlap = True
+            # Если занятый интервал уже прошел (он целиком раньше текущего слота)
+            if busy_end <= current_slot:
+                busy_idx += 1
+                continue
+
+            # Если занятый интервал еще не начался (он целиком позже текущего слота)
+            if busy_start >= slot_end:
+                # Пересечения нет, и так как массив отсортирован,
+                # следующие интервалы тоже будут позже. Выходим из внутреннего цикла.
                 break
 
-        if not is_overlap:
-            free_slots.append(slot.isoformat())
+            # Иначе - есть пересечение
+            is_busy = True
+            break
+
+        if not is_busy:
+            free_slots.append(current_slot.isoformat())
+
+        # Переходим к следующему шагу
+        current_slot += timedelta(minutes=slot_step)
 
     return free_slots
+
 
 @router.post("/appointments")
 async def create_appointment_public(
         app_data: AppointmentCreate,
         user=Depends(validate_telegram_data)
 ):
+    # 1. Создаем запись в БД
     new_appt = await AppointmentService.create(
         data=app_data,
         client_id=user['id'],
         client_username=user.get('username')
     )
 
+    # 2. Отправляем уведомление мастеру (Fire & Forget, ошибки не должны ломать ответ API)
     try:
         service_name = "Услуга"
+        # Пытаемся получить красивое имя услуги
         try:
             srv_res = supabase.table("services").select("name").eq("id", new_appt['service_id']).single().execute()
             if srv_res.data:
-                # [NEW] Экранируем название услуги на всякий случай
                 service_name = escape_html(srv_res.data.get('name', 'Услуга'))
         except:
             pass
 
+        # Определяем таймзону мастера для красивой даты
         tz_name = 'Asia/Almaty'
         try:
             master_res = supabase.table("masters").select("timezone").eq("telegram_id", new_appt[
@@ -179,6 +228,7 @@ async def create_appointment_public(
         except:
             pass
 
+        # Форматируем дату
         try:
             utc_dt = datetime.fromisoformat(new_appt['starts_at'].replace('Z', '+00:00'))
             master_tz = pytz.timezone(tz_name)
@@ -187,7 +237,7 @@ async def create_appointment_public(
         except:
             date_str = str(new_appt['starts_at'])
 
-        # [NEW] Безопасная сборка сообщения (экранирование)
+        # Безопасная сборка данных (XSS защита)
         safe_client_name = escape_html(new_appt.get('client_name', 'Не указано'))
         safe_username = escape_html(new_appt.get('client_username'))
         safe_phone = escape_html(new_appt.get('client_phone'))
@@ -217,7 +267,8 @@ async def create_appointment_public(
             f"{comment_section}"
         )
         send_telegram_message(new_appt['master_telegram_id'], msg)
+
     except Exception as e:
-        print(f"Notify error: {e}")
+        print(f"Notify error (non-critical): {e}")
 
     return new_appt
