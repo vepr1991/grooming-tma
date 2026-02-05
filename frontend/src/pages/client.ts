@@ -11,58 +11,53 @@ declare const IMask: any;
 
 initTelegram();
 
-// Global init
 const urlParams = new URLSearchParams(window.location.search);
-const masterId = urlParams.get('start_param') || '579214945'; // Fallback ID
+const masterId = urlParams.get('start_param') || '579214945';
 
 async function init() {
-    // 1. Setup inputs
     const phoneInput = $('inp-phone');
     if (typeof IMask !== 'undefined' && phoneInput) {
         IMask(phoneInput, { mask: '+{7} (000) 000-00-00', lazy: false });
     }
 
-    // 2. Pre-fill name if available
     const user = Telegram.WebApp.initDataUnsafe?.user;
     if (user) {
         const nameInput = $('inp-client-name') as HTMLInputElement;
         if (nameInput) nameInput.value = `${user.first_name} ${user.last_name || ''}`.trim();
     }
 
-    // 3. Load Data
     const masterProfile = await loadMasterInfo(masterId);
-
-    // 4. Init Booking Module with timezone
     const tz = masterProfile?.timezone || 'Asia/Almaty';
     setupBooking(masterId, tz);
 
-    // 5. Load Services & Bind Booking Flow
     await loadServices(masterId, (service) => {
-        openBooking(service, () => {
-            // Callback when returning from booking
-        });
+        openBooking(service, () => {});
     });
 
-    // 6. [NEW] My Appointments Logic
     const btnMyApps = $('btn-open-my-appointments');
     if (btnMyApps) {
         btnMyApps.onclick = openMyAppointments;
     }
 }
 
-// [NEW] Функция загрузки и отображения записей
+// [FIX] Логика корректного закрытия истории
+function closeHistory() {
+    hide('view-my-appointments');
+    show('view-home');
+    Telegram.WebApp.BackButton.hide();
+}
+
 async function openMyAppointments() {
     hide('view-home');
-    hide('view-booking');
+    hide('view-booking'); // На всякий случай скрываем и букинг
     show('view-my-appointments');
 
-    // Переопределяем кнопку Назад
     Telegram.WebApp.BackButton.show();
-    Telegram.WebApp.BackButton.onClick(() => {
-        hide('view-my-appointments');
-        show('view-home');
-        Telegram.WebApp.BackButton.hide();
-    });
+    Telegram.WebApp.BackButton.onClick(closeHistory);
+
+    // [FIX] Привязываем логику к кнопке HTML
+    const htmlBtn = $('btn-close-history');
+    if (htmlBtn) htmlBtn.onclick = closeHistory;
 
     const list = $('my-appointments-list');
     if (!list) return;
@@ -87,14 +82,12 @@ async function openMyAppointments() {
             const card = document.createElement('div');
             card.className = "bg-surface border border-border rounded-xl p-4 flex gap-4";
 
-            // Статус цвета
             let statusColor = "bg-primary";
             let statusText = "Ожидает";
             if (a.status === 'confirmed') { statusColor = "bg-success"; statusText = "Подтверждено"; }
             if (a.status === 'cancelled') { statusColor = "bg-error"; statusText = "Отменено"; }
             if (a.status === 'completed') { statusColor = "bg-secondary"; statusText = "Завершено"; }
 
-            // Дата
             const dateObj = new Date(a.starts_at);
             const dateStr = dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
             const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
