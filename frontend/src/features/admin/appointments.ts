@@ -1,10 +1,10 @@
-import { $, setText, show, hide } from '../../core/dom';
+import { $, setText } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { showToast } from '../../ui/toast';
 import { showConfirm } from '../../ui/modal';
 import { ICONS } from '../../ui/icons';
 import { Appointment } from '../../types';
-import { Telegram } from '../../core/tg'; // Не забудь про этот импорт
+import { Telegram } from '../../core/tg';
 
 // --- State ---
 let appointmentsCache: Appointment[] = [];
