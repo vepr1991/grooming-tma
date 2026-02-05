@@ -1,8 +1,20 @@
 import { $, setText, show, hide } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { renderCarousel } from '../../ui/carousel';
-import { getClientServiceSkeleton } from '../../ui/skeletons'; // NEW
+import { getClientServiceSkeleton } from '../../ui/skeletons';
 import { Service, MasterProfile } from '../../types';
+
+// Хелпер для создания элементов
+function createEl<K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    className?: string,
+    text?: string
+): HTMLElementTagNameMap[K] {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text) el.textContent = text;
+    return el;
+}
 
 export async function loadMasterInfo(masterId: string) {
     try {
@@ -23,13 +35,17 @@ export async function loadMasterInfo(masterId: string) {
         const descEl = $('hero-desc');
         if (descEl) {
             setText('hero-desc', data.description || 'Нет описания');
+            // Логика "Читать далее"
             if (descEl.scrollHeight > descEl.clientHeight) {
                 show('btn-expand-desc');
-                $('btn-expand-desc')!.onclick = function() {
-                    descEl.classList.remove('desc-clamp');
-                    descEl.classList.add('desc-expanded');
-                    hide(this as HTMLElement);
-                };
+                const btn = $('btn-expand-desc');
+                if (btn) {
+                    btn.onclick = function() {
+                        descEl.classList.remove('desc-clamp');
+                        descEl.classList.add('desc-expanded');
+                        hide(this as HTMLElement);
+                    };
+                }
             }
         }
 
@@ -58,17 +74,24 @@ function checkOpenStatus(timezone: string) {
         const end = 21 * 60;
 
         const statusEl = $('hero-status');
-        const dotEl = $('status-dot');
-        const textDotEl = $('status-text-dot');
+        const dotEl = $('status-text-dot'); // Исправил ID, был status-text-dot в HTML
 
         if (currentMinutes >= start && currentMinutes < end) {
-            if(statusEl) { statusEl.textContent = "Открыто сейчас"; statusEl.className = "text-[#31b545] text-xs font-bold uppercase tracking-wider"; }
-            if(dotEl) dotEl.className = "absolute bottom-1 right-1 w-5 h-5 bg-[#31b545] border-4 border-bg rounded-full z-20";
-            if(textDotEl) textDotEl.className = "text-[#31b545] text-[10px]";
+            if(statusEl) {
+                statusEl.textContent = "Открыто сейчас";
+                statusEl.className = "text-[#31b545] text-xs font-bold uppercase tracking-wider";
+            }
+            if(dotEl) {
+                dotEl.className = "text-[#31b545] text-[10px]";
+            }
         } else {
-            if(statusEl) { statusEl.textContent = "Закрыто"; statusEl.className = "text-gray-400 text-xs font-bold uppercase tracking-wider"; }
-            if(dotEl) dotEl.className = "absolute bottom-1 right-1 w-5 h-5 bg-gray-500 border-4 border-bg rounded-full z-20";
-            if(textDotEl) textDotEl.className = "text-gray-500 text-[10px]";
+            if(statusEl) {
+                statusEl.textContent = "Закрыто";
+                statusEl.className = "text-gray-400 text-xs font-bold uppercase tracking-wider";
+            }
+            if(dotEl) {
+                dotEl.className = "text-gray-500 text-[10px]";
+            }
         }
     } catch (e) { console.error(e); }
 }
@@ -77,7 +100,7 @@ export async function loadServices(masterId: string, onSelect: (s: Service) => v
     const list = $('services-list');
     if (!list) return;
 
-    // NEW: Показываем скелетон перед запросом
+    // Скелетон (через innerHTML безопасно, т.к. это константа)
     list.innerHTML = getClientServiceSkeleton(4);
 
     try {
@@ -85,39 +108,42 @@ export async function loadServices(masterId: string, onSelect: (s: Service) => v
         list.innerHTML = '';
 
         if (services.length === 0) {
-            list.innerHTML = '<div class="text-center text-secondary py-4">Нет услуг</div>';
+            const empty = createEl('div', 'text-center text-secondary py-4', 'Нет услуг');
+            list.appendChild(empty);
             return;
         }
 
         services.forEach(srv => {
-            const card = document.createElement('div');
-            card.className = 'w-full bg-surface border border-border rounded-xl overflow-hidden shadow-sm transition-all mb-3';
+            const card = createEl('div', 'w-full bg-surface border border-border rounded-xl overflow-hidden shadow-sm transition-all mb-3');
 
-            const header = document.createElement('div');
-            header.className = 'p-4 flex justify-between items-center cursor-pointer active:bg-bg/50 transition-colors min-h-[72px]';
+            // --- Header ---
+            const header = createEl('div', 'p-4 flex justify-between items-center cursor-pointer active:bg-bg/50 transition-colors min-h-[72px]');
 
-            header.innerHTML = `
-                <div class="flex flex-col gap-1 flex-1 min-w-0 pr-4">
-                    <span class="text-white font-bold text-base leading-tight">${srv.name}</span>
-                    <span class="text-secondary text-xs">${srv.duration_min} мин</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span class="text-primary font-bold text-base whitespace-nowrap">${srv.price} ₸</span>
-                    <span class="material-symbols-rounded text-secondary/50 text-xl transition-transform duration-300 chevron">expand_more</span>
-                </div>
-            `;
+            // Левая часть (Имя + Время)
+            const leftCol = createEl('div', 'flex flex-col gap-1 flex-1 min-w-0 pr-4');
+            const nameEl = createEl('span', 'text-white font-bold text-base leading-tight', srv.name);
+            const timeEl = createEl('span', 'text-secondary text-xs', `${srv.duration_min} мин`);
+            leftCol.appendChild(nameEl);
+            leftCol.appendChild(timeEl);
 
-            const body = document.createElement('div');
-            body.className = 'hidden px-4 pb-4 pt-0 border-t border-border/30 bg-bg/20';
+            // Правая часть (Цена + Шеврон)
+            const rightCol = createEl('div', 'flex items-center gap-3');
+            const priceEl = createEl('span', 'text-primary font-bold text-base whitespace-nowrap', `${srv.price} ₸`);
+            const chevron = createEl('span', 'material-symbols-rounded text-secondary/50 text-xl transition-transform duration-300 chevron', 'expand_more');
+            rightCol.appendChild(priceEl);
+            rightCol.appendChild(chevron);
 
-            const descP = document.createElement('p');
-            descP.className = 'text-sm text-secondary py-3 leading-relaxed';
+            header.appendChild(leftCol);
+            header.appendChild(rightCol);
+
+            // --- Body (Описание + Кнопка) ---
+            const body = createEl('div', 'hidden px-4 pb-4 pt-0 border-t border-border/30 bg-bg/20');
+
+            const descP = createEl('p', 'text-sm text-secondary py-3 leading-relaxed');
             descP.textContent = srv.description || '';
-            if (!srv.description) descP.className = 'h-2';
+            if (!srv.description) descP.className = 'h-2'; // Отступ если нет описания
 
-            const btn = document.createElement('button');
-            btn.className = 'w-full bg-primary text-white font-bold py-3 rounded-xl active:scale-[0.98] transition-all shadow-lg shadow-primary/20 mt-2';
-            btn.textContent = 'Записаться';
+            const btn = createEl('button', 'w-full bg-primary text-white font-bold py-3 rounded-xl active:scale-[0.98] transition-all shadow-lg shadow-primary/20 mt-2', 'Записаться');
             btn.onclick = (e) => {
                 e.stopPropagation();
                 onSelect(srv);
@@ -126,10 +152,10 @@ export async function loadServices(masterId: string, onSelect: (s: Service) => v
             body.appendChild(descP);
             body.appendChild(btn);
 
-            const chevron = header.querySelector('.chevron') as HTMLElement;
+            // Логика раскрытия
             header.onclick = () => {
                 const isHidden = body.classList.toggle('hidden');
-                if (chevron) chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
+                chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
             };
 
             card.appendChild(header);
@@ -137,6 +163,7 @@ export async function loadServices(masterId: string, onSelect: (s: Service) => v
             list.appendChild(card);
         });
     } catch (e) {
-        list.innerHTML = '<div class="text-center text-error">Ошибка загрузки</div>';
+        list.innerHTML = '';
+        list.appendChild(createEl('div', 'text-center text-error', 'Ошибка загрузки'));
     }
 }
