@@ -1,15 +1,13 @@
 # (c) 2026 Владимир Коваленко. Все права защищены.
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from typing import List
 from datetime import datetime
-from app.utils import send_telegram_message, compress_image
 import pytz
 import uuid
 
 from app.auth import validate_telegram_data
 from app.db import supabase
-# [NEW] Импорт escape_html
-from app.utils import send_telegram_message, escape_html
+from app.utils import send_telegram_message, compress_image, escape_html
 from app.schemas.master import (
     MasterProfileUpdate, ServiceCreate, ServiceUpdate, WorkingHourItem
 )
@@ -130,7 +128,6 @@ async def update_service(
         user=Depends(validate_telegram_data)
 ):
     update_data = srv.model_dump(exclude_unset=True)
-
     if not update_data:
         raise HTTPException(status_code=400, detail="No data provided")
 
@@ -172,10 +169,8 @@ async def set_hours(hours: List[WorkingHourItem], user=Depends(validate_telegram
     for h in hours:
         item = h.model_dump()
         item['master_telegram_id'] = user['id']
-
         if not is_premium:
             item['slot_minutes'] = 30
-
         data_list.append(item)
 
     supabase.table("working_hours").delete().eq("master_telegram_id", user['id']).execute()
@@ -196,45 +191,77 @@ async def get_my_appointments(user=Depends(validate_telegram_data)):
     return res.data
 
 
+# --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ АДМИНСКИХ УВЕДОМЛЕНИЙ ---
+async def notify_client_status(aid: int, status: str, master_id: int):
+    """
+    Отправляет уведомление клиенту о смене статуса (подтверждение/отмена).
+    Выполняется в фоне.
+    """
+    try:
+        # Получаем детали записи
+        details = supabase.table("appointments").select("*, services(name)").eq("id", aid).single().execute()
+        appt = details.data
+        if not appt or not appt.get('client_telegram_id'):
+            return
+
+        # Получаем таймзону мастера
+        master_res = supabase.table("masters").select("timezone").eq("telegram_id", master_id).single().execute()
+        tz_name = master_res.data.get('timezone', 'Asia/Almaty') if master_res.data else 'Asia/Almaty'
+
+        # Экранирование данных
+        raw_srv = appt.get('services', {}).get('name', 'Груминг') if appt.get('services') else "Груминг"
+        service_name = escape_html(raw_srv)
+
+        raw_pet = appt.get('pet_name', 'Не указано')
+        pet_name = escape_html(raw_pet)
+
+        # Форматирование времени
+        try:
+            utc_dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
+            master_tz = pytz.timezone(tz_name)
+            local_dt = utc_dt.astimezone(master_tz)
+            date_str = local_dt.strftime('%d.%m.%Y в %H:%M')
+        except:
+            date_str = str(appt.get('starts_at', ''))
+
+        msg = ""
+        if status == "confirmed":
+            msg = (
+                f"✅ <b>Ваша запись подтверждена!</b>\n\n"
+                f"🐶 Питомец: <b>{pet_name}</b>\n"
+                f"✂️ Услуга: {service_name}\n"
+                f"🗓 Время: {date_str}\n\n"
+                f"📍 Ждем вас!"
+            )
+        elif status == "cancelled":
+            msg = (
+                f"🚫 <b>Запись отменена</b>\n\n"
+                f"К сожалению, мастер отменил вашу запись.\n\n"
+                f"🐶 Питомец: <b>{pet_name}</b>\n"
+                f"✂️ Услуга: {service_name}\n"
+                f"🗓 Время: {date_str}\n\n"
+                f"Пожалуйста, выберите другое удобное время."
+            )
+
+        if msg:
+            send_telegram_message(appt['client_telegram_id'], msg)
+    except Exception as e:
+        print(f"Client notify error: {e}")
+
+
 @router.post("/appointments/{aid}/confirm")
-async def confirm_appointment(aid: int, user=Depends(validate_telegram_data)):
+async def confirm_appointment(
+        aid: int,
+        background_tasks: BackgroundTasks,  # [FIX]
+        user=Depends(validate_telegram_data)
+):
     res = supabase.table("appointments").update({"status": "confirmed"}) \
         .eq("id", aid).eq("master_telegram_id", user['id']).execute()
 
     if res.data:
-        try:
-            master_res = supabase.table("masters").select("timezone").eq("telegram_id", user['id']).single().execute()
-            tz_name = master_res.data.get('timezone', 'Asia/Almaty') if master_res.data else 'Asia/Almaty'
+        # Запускаем уведомление в фоне
+        background_tasks.add_task(notify_client_status, aid, "confirmed", user['id'])
 
-            details = supabase.table("appointments").select("*, services(name)").eq("id", aid).single().execute()
-            appt = details.data
-
-            if appt.get('client_telegram_id'):
-                # [NEW] Экранирование
-                raw_srv = appt.get('services', {}).get('name', 'Груминг') if appt.get('services') else "Груминг"
-                service_name = escape_html(raw_srv)
-
-                raw_pet = appt.get('pet_name', 'Не указано')
-                pet_name = escape_html(raw_pet)
-
-                try:
-                    utc_dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
-                    master_tz = pytz.timezone(tz_name)
-                    local_dt = utc_dt.astimezone(master_tz)
-                    date_str = local_dt.strftime('%d.%m.%Y в %H:%M')
-                except:
-                    date_str = str(appt['starts_at'])
-
-                msg = (
-                    f"✅ <b>Ваша запись подтверждена!</b>\n\n"
-                    f"🐶 Питомец: <b>{pet_name}</b>\n"
-                    f"✂️ Услуга: {service_name}\n"
-                    f"🗓 Время: {date_str}\n\n"
-                    f"📍 Ждем вас!"
-                )
-                send_telegram_message(appt['client_telegram_id'], msg)
-        except Exception as e:
-            print(f"Notify error: {e}")
     return res.data
 
 
@@ -246,43 +273,16 @@ async def complete_appointment(aid: int, user=Depends(validate_telegram_data)):
 
 
 @router.post("/appointments/{aid}/cancel")
-async def cancel_appointment(aid: int, user=Depends(validate_telegram_data)):
+async def cancel_appointment(
+        aid: int,
+        background_tasks: BackgroundTasks,  # [FIX]
+        user=Depends(validate_telegram_data)
+):
     res = supabase.table("appointments").update({"status": "cancelled"}) \
         .eq("id", aid).eq("master_telegram_id", user['id']).execute()
 
     if res.data:
-        try:
-            master_res = supabase.table("masters").select("timezone").eq("telegram_id", user['id']).single().execute()
-            tz_name = master_res.data.get('timezone', 'Asia/Almaty') if master_res.data else 'Asia/Almaty'
+        # Запускаем уведомление в фоне
+        background_tasks.add_task(notify_client_status, aid, "cancelled", user['id'])
 
-            details = supabase.table("appointments").select("*, services(name)").eq("id", aid).single().execute()
-            appt = details.data
-
-            if appt and appt.get('client_telegram_id'):
-                # [NEW] Экранирование
-                raw_srv = appt.get('services', {}).get('name', 'Груминг') if appt.get('services') else "Груминг"
-                service_name = escape_html(raw_srv)
-
-                raw_pet = appt.get('pet_name', 'Не указано')
-                pet_name = escape_html(raw_pet)
-
-                try:
-                    utc_dt = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
-                    master_tz = pytz.timezone(tz_name)
-                    local_dt = utc_dt.astimezone(master_tz)
-                    date_str = local_dt.strftime('%d.%m.%Y в %H:%M')
-                except:
-                    date_str = str(appt.get('starts_at', ''))
-
-                msg = (
-                    f"🚫 <b>Запись отменена</b>\n\n"
-                    f"К сожалению, мастер отменил вашу запись.\n\n"
-                    f"🐶 Питомец: <b>{pet_name}</b>\n"
-                    f"✂️ Услуга: {service_name}\n"
-                    f"🗓 Время: {date_str}\n\n"
-                    f"Пожалуйста, выберите другое удобное время."
-                )
-                send_telegram_message(appt['client_telegram_id'], msg)
-        except Exception:
-            pass
     return res.data

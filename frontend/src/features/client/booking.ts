@@ -2,7 +2,7 @@ import { $, setText, show, hide, getVal } from '../../core/dom';
 import { apiFetch } from '../../core/api';
 import { Telegram } from '../../core/tg';
 import { Service } from '../../types';
-import { showToast } from '../../ui/toast'; // [FIX 2] Импортируем Toast
+import { showToast } from '../../ui/toast'; // [FIX] Импорт
 
 let selectedService: Service | null = null;
 let selectedDate: string | null = null;
@@ -189,12 +189,10 @@ async function submitBooking() {
     const agreement = ($('inp-agreement') as HTMLInputElement)?.checked;
 
     if (!name || phone.length < 10) {
-        // Здесь можно оставить showAlert для критичных ошибок валидации или тоже заменить на Toast
         showToast('Заполните имя и телефон', 'error');
         return;
     }
 
-    // [FIX 2] Toast вместо Alert для оферты
     if (!agreement) {
         showToast('Примите условия оферты', 'error');
         return;
@@ -217,6 +215,7 @@ async function submitBooking() {
 
         await apiFetch('/appointments', { method: 'POST', body: JSON.stringify(payload) });
 
+        // Успех
         if (selectedDate && selectedSlot) {
             const dateObj = new Date(selectedSlot);
             const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: masterTimezone });
@@ -230,8 +229,16 @@ async function submitBooking() {
         show('view-success');
         Telegram.WebApp.MainButton.hide();
 
-    } catch (e) {
-        showToast('Ошибка записи. Время занято?', 'error');
+    } catch (e: any) {
         Telegram.WebApp.MainButton.hideProgress();
+
+        // [FIX] Обработка конфликта (409)
+        if (e.message && (e.message.includes('409') || e.message.toLowerCase().includes('conflict') || e.message.includes('занято'))) {
+            showToast('Это время только что заняли. Выберите другое.', 'error');
+            // Обновляем слоты, чтобы пользователь увидел, что место пропало
+            if (selectedDate) loadSlots(selectedDate);
+        } else {
+            showToast('Ошибка при записи. Попробуйте позже.', 'error');
+        }
     }
 }

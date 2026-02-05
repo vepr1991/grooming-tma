@@ -1,11 +1,10 @@
 # (c) 2026 Владимир Коваленко. Все права защищены.
-from fastapi import APIRouter, Depends, HTTPException
-from datetime import datetime, timedelta, time
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from datetime import datetime, timedelta
 import pytz
 
 from app.auth import validate_telegram_data
 from app.db import supabase
-# Не забываем про нашу защиту от XSS
 from app.utils import send_telegram_message, escape_html
 from app.schemas.appointment import AppointmentCreate
 from app.services.appointment_service import AppointmentService
@@ -52,8 +51,7 @@ async def get_master_availability(master_id: int, service_id: int, date: str):
     Оптимизированный поиск слотов.
     Сложность снижена с O(N*M) до O(N+M) за счет сортировки и линейного прохода.
     """
-    # 1. Параллельная загрузка данных (в идеале), но здесь делаем последовательно, но эффективно.
-    # Загружаем таймзону и премиум статус (легкий запрос)
+    # 1. Загружаем таймзону и премиум статус
     master_res = supabase.table("masters") \
         .select("timezone, is_premium") \
         .eq("telegram_id", master_id) \
@@ -108,7 +106,6 @@ async def get_master_availability(master_id: int, service_id: int, date: str):
     slot_step = 30 if not is_premium else schedule.get('slot_minutes', 30)
 
     # Парсим время начала и конца работы
-    # start_time строка вида "09:00:00"
     def parse_time_to_dt(time_str, base_date):
         t = datetime.strptime(time_str, "%H:%M:%S").time()
         return base_date.replace(hour=t.hour, minute=t.minute, second=0)
@@ -118,17 +115,13 @@ async def get_master_availability(master_id: int, service_id: int, date: str):
 
     # Корректировка, если смотрим "сегодня" - нельзя записаться в прошлое
     if work_start_dt < now_in_tz:
-        # Округляем текущее время до следующего слота
-        # Например, сейчас 14:12, шаг 30 -> начало в 14:30
         minute_remainder = now_in_tz.minute % slot_step
         minutes_to_add = slot_step - minute_remainder
         next_slot_time = now_in_tz + timedelta(minutes=minutes_to_add)
         next_slot_time = next_slot_time.replace(second=0, microsecond=0)
-
         work_start_dt = max(work_start_dt, next_slot_time)
 
-    # 5. Загружаем занятые интервалы (Appointments)
-    # Конвертируем диапазон дня в UTC для запроса к БД
+    # 5. Загружаем занятые интервалы
     day_start_utc = target_date_start.astimezone(pytz.utc)
     day_end_utc = target_date_end.astimezone(pytz.utc)
 
@@ -141,24 +134,19 @@ async def get_master_availability(master_id: int, service_id: int, date: str):
         .order("starts_at") \
         .execute()
 
-    # Формируем список занятых интервалов [(start, end), ...]
     busy_intervals = []
     for appt in busy_res.data:
         utc_start = datetime.fromisoformat(appt['starts_at'].replace('Z', '+00:00'))
         local_start = utc_start.astimezone(master_tz)
-
         srv_dur = 60
         if appt.get('services') and appt['services'].get('duration_min'):
             srv_dur = appt['services']['duration_min']
-
         local_end = local_start + timedelta(minutes=srv_dur)
         busy_intervals.append((local_start, local_end))
 
     # 6. Алгоритм генерации слотов (Linear Scan)
     free_slots = []
     current_slot = work_start_dt
-
-    # Индекс текущего занятого интервала, который мы проверяем
     busy_idx = 0
     total_busy = len(busy_intervals)
 
@@ -166,83 +154,54 @@ async def get_master_availability(master_id: int, service_id: int, date: str):
         slot_end = current_slot + timedelta(minutes=duration)
         is_busy = False
 
-        # Проверяем пересечение с занятыми интервалами
-        # Так как busy_intervals отсортированы, мы можем не проверять старые
         while busy_idx < total_busy:
             busy_start, busy_end = busy_intervals[busy_idx]
-
-            # Если занятый интервал уже прошел (он целиком раньше текущего слота)
             if busy_end <= current_slot:
                 busy_idx += 1
                 continue
-
-            # Если занятый интервал еще не начался (он целиком позже текущего слота)
             if busy_start >= slot_end:
-                # Пересечения нет, и так как массив отсортирован,
-                # следующие интервалы тоже будут позже. Выходим из внутреннего цикла.
                 break
-
-            # Иначе - есть пересечение
             is_busy = True
             break
 
         if not is_busy:
             free_slots.append(current_slot.isoformat())
 
-        # Переходим к следующему шагу
         current_slot += timedelta(minutes=slot_step)
 
     return free_slots
 
 
-# [NEW] Эндпоинт для просмотра своих записей клиентом
 @router.get("/my-appointments")
 async def get_client_appointments(user=Depends(validate_telegram_data)):
     # Выбираем записи текущего пользователя
-    # Подтягиваем данные о мастере и услуге, чтобы показать красивую карточку
     res = supabase.table("appointments") \
         .select("*, services(name, price, duration_min), masters(salon_name, address, phone, avatar_url)") \
         .eq("client_telegram_id", user['id']) \
         .order("starts_at", desc=True) \
         .limit(20) \
         .execute()
-
     return res.data
 
-@router.post("/appointments")
-async def create_appointment_public(
-        app_data: AppointmentCreate,
-        user=Depends(validate_telegram_data)
-):
-    # 1. Создаем запись в БД
-    new_appt = await AppointmentService.create(
-        data=app_data,
-        client_id=user['id'],
-        client_username=user.get('username')
-    )
 
-    # 2. Отправляем уведомление мастеру (Fire & Forget, ошибки не должны ломать ответ API)
+# --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ФОНОВОГО УВЕДОМЛЕНИЯ ---
+async def send_new_appointment_notification(new_appt: dict):
+    """Отправляет уведомление мастеру в фоне, чтобы не тормозить API"""
     try:
         service_name = "Услуга"
-        # Пытаемся получить красивое имя услуги
         try:
             srv_res = supabase.table("services").select("name").eq("id", new_appt['service_id']).single().execute()
             if srv_res.data:
                 service_name = escape_html(srv_res.data.get('name', 'Услуга'))
-        except:
-            pass
+        except: pass
 
-        # Определяем таймзону мастера для красивой даты
         tz_name = 'Asia/Almaty'
         try:
-            master_res = supabase.table("masters").select("timezone").eq("telegram_id", new_appt[
-                'master_telegram_id']).single().execute()
+            master_res = supabase.table("masters").select("timezone").eq("telegram_id", new_appt['master_telegram_id']).single().execute()
             if master_res.data and master_res.data.get('timezone'):
                 tz_name = master_res.data['timezone']
-        except:
-            pass
+        except: pass
 
-        # Форматируем дату
         try:
             utc_dt = datetime.fromisoformat(new_appt['starts_at'].replace('Z', '+00:00'))
             master_tz = pytz.timezone(tz_name)
@@ -281,8 +240,24 @@ async def create_appointment_public(
             f"{comment_section}"
         )
         send_telegram_message(new_appt['master_telegram_id'], msg)
-
     except Exception as e:
-        print(f"Notify error (non-critical): {e}")
+        print(f"Background notify error: {e}")
+
+
+@router.post("/appointments")
+async def create_appointment_public(
+        app_data: AppointmentCreate,
+        background_tasks: BackgroundTasks,  # [FIX] Инжектируем BackgroundTasks
+        user=Depends(validate_telegram_data)
+):
+    # 1. Создаем запись в БД (синхронно или асинхронно, главное быстро)
+    new_appt = await AppointmentService.create(
+        data=app_data,
+        client_id=user['id'],
+        client_username=user.get('username')
+    )
+
+    # 2. Ставим отправку уведомления в очередь (не ждем ответа от Telegram)
+    background_tasks.add_task(send_new_appointment_notification, new_appt)
 
     return new_appt
