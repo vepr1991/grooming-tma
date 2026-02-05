@@ -1,6 +1,6 @@
-import { $, show, hide, setText, showToast } from '../../core/dom';
+import { $, setText } from '../../core/dom';
+import { showToast } from '../../ui/toast';
 import { apiFetch } from '../../core/api';
-import { Telegram } from '../../core/tg';
 
 let currentStatus = 'pending';
 
@@ -13,14 +13,12 @@ export async function loadAppointments() {
     try {
         const allAppointments = await apiFetch<any[]>('/me/appointments');
 
-        // Фильтрация
         const filtered = allAppointments.filter(a => a.status === currentStatus);
 
-        // Обновление счетчика
         setText('tab-count', filtered.length.toString());
         setText('tab-label', getStatusLabel(currentStatus));
 
-        list.innerHTML = ''; // Очистка
+        list.innerHTML = '';
 
         if (filtered.length === 0) {
             list.innerHTML = `
@@ -32,7 +30,6 @@ export async function loadAppointments() {
             return;
         }
 
-        // Рендер карточек (БЕЗОПАСНО)
         filtered.forEach(appt => {
             const card = createAppointmentCard(appt);
             list.appendChild(card);
@@ -48,17 +45,14 @@ function createAppointmentCard(appt: any) {
     const card = document.createElement('div');
     card.className = "bg-surface-dark border border-border-dark p-4 rounded-2xl space-y-3 relative overflow-hidden";
 
-    // Статус-бар слева (цветной)
     const statusColor = getStatusColor(appt.status);
     const borderLeft = document.createElement('div');
     borderLeft.className = `absolute left-0 top-0 bottom-0 w-1 ${statusColor}`;
     card.appendChild(borderLeft);
 
-    // 1. Верхняя часть: Время и Дата
     const timeRow = document.createElement('div');
     timeRow.className = "flex justify-between items-center mb-1";
 
-    // Форматирование даты
     const dateObj = new Date(appt.starts_at);
     const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     const dateStr = dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
@@ -78,12 +72,10 @@ function createAppointmentCard(appt: any) {
     timeEl.appendChild(dateSmall);
     timeRow.appendChild(timeEl);
 
-    // Цена/Длительность
     const priceBadge = document.createElement('div');
     priceBadge.className = "bg-background-dark px-2 py-1 rounded-lg border border-border-dark";
     const priceText = document.createElement('span');
     priceText.className = "text-xs font-bold text-primary";
-    // Проверка на наличие услуги (могла быть удалена)
     const price = appt.services?.price || 0;
     priceText.textContent = `${price} ₸`;
     priceBadge.appendChild(priceText);
@@ -91,26 +83,22 @@ function createAppointmentCard(appt: any) {
     timeRow.appendChild(priceBadge);
     card.appendChild(timeRow);
 
-    // 2. Услуга
     const serviceName = document.createElement('h3');
     serviceName.className = "text-white font-bold text-sm leading-tight";
-    serviceName.textContent = appt.services?.name || 'Услуга удалена'; // XSS Protection
+    serviceName.textContent = appt.services?.name || 'Услуга удалена';
     card.appendChild(serviceName);
 
-    // 3. Клиент
     const clientBlock = document.createElement('div');
     clientBlock.className = "bg-background-dark/50 p-3 rounded-xl border border-border-dark/50 flex flex-col gap-1";
 
-    // Имя
     const clientRow = document.createElement('div');
     clientRow.className = "flex items-center gap-2";
     clientRow.innerHTML = '<span class="material-symbols-outlined text-[16px] text-text-secondary">person</span>';
 
     const clientName = document.createElement('span');
     clientName.className = "text-sm font-bold text-white";
-    clientName.textContent = appt.client_name || 'Клиент без имени'; // XSS Protection
+    clientName.textContent = appt.client_name || 'Клиент без имени';
 
-    // Юзернейм (ссылка)
     if (appt.client_username) {
         const tgLink = document.createElement('a');
         tgLink.href = `https://t.me/${appt.client_username}`;
@@ -122,13 +110,12 @@ function createAppointmentCard(appt: any) {
     clientRow.appendChild(clientName);
     clientBlock.appendChild(clientRow);
 
-    // Телефон (ссылка)
     const phoneRow = document.createElement('div');
     phoneRow.className = "flex items-center gap-2";
     phoneRow.innerHTML = '<span class="material-symbols-outlined text-[16px] text-text-secondary">call</span>';
 
     const phoneLink = document.createElement('a');
-    phoneLink.href = `tel:${appt.client_phone}`; // Safe attribute
+    phoneLink.href = `tel:${appt.client_phone}`;
     phoneLink.className = "text-xs font-mono text-text-secondary font-bold hover:text-white transition-colors";
     phoneLink.textContent = appt.client_phone;
 
@@ -137,7 +124,6 @@ function createAppointmentCard(appt: any) {
 
     card.appendChild(clientBlock);
 
-    // 4. Питомец и Комментарий
     if (appt.pet_name || appt.comment) {
         const extraBlock = document.createElement('div');
         extraBlock.className = "flex flex-col gap-1 pl-1";
@@ -147,7 +133,7 @@ function createAppointmentCard(appt: any) {
             petRow.className = "flex items-center gap-2 text-xs text-text-secondary";
             petRow.innerHTML = '<span class="material-symbols-outlined text-[14px]">pets</span>';
             const petText = document.createElement('span');
-            petText.textContent = `${appt.pet_name} ${appt.pet_breed ? `(${appt.pet_breed})` : ''}`; // XSS Protection
+            petText.textContent = `${appt.pet_name} ${appt.pet_breed ? `(${appt.pet_breed})` : ''}`;
             petRow.appendChild(petText);
             extraBlock.appendChild(petRow);
         }
@@ -157,14 +143,13 @@ function createAppointmentCard(appt: any) {
             commentRow.className = "flex items-start gap-2 text-xs text-text-secondary italic mt-1";
             commentRow.innerHTML = '<span class="material-symbols-outlined text-[14px] mt-0.5">chat</span>';
             const commentText = document.createElement('span');
-            commentText.textContent = appt.comment; // XSS Protection
+            commentText.textContent = appt.comment;
             commentRow.appendChild(commentText);
             extraBlock.appendChild(commentRow);
         }
         card.appendChild(extraBlock);
     }
 
-    // 5. Действия (Кнопки)
     const actions = document.createElement('div');
     actions.className = "grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-border-dark/30";
 
@@ -179,9 +164,8 @@ function createAppointmentCard(appt: any) {
         actions.appendChild(btnCancel);
         actions.appendChild(btnComplete);
     } else {
-        // Для завершенных/отмененных кнопок нет
         actions.remove();
-        return card; // Ранний выход
+        return card;
     }
 
     card.appendChild(actions);
@@ -196,7 +180,6 @@ function createBtn(text: string, classes: string, onClick: () => void) {
     return btn;
 }
 
-// Хендлер действий
 async function action(id: number, type: 'confirm' | 'cancel' | 'complete') {
     if (type === 'cancel' && !confirm('Точно отменить запись?')) return;
     if (type === 'complete' && !confirm('Завершить запись?')) return;
@@ -204,7 +187,7 @@ async function action(id: number, type: 'confirm' | 'cancel' | 'complete') {
     try {
         await apiFetch(`/me/appointments/${id}/${type}`, { method: 'POST' });
         showToast('Статус обновлен');
-        loadAppointments(); // Перезагрузка списка
+        loadAppointments();
     } catch (e) {
         showToast('Ошибка обновления', 'error');
     }
@@ -229,12 +212,10 @@ function getStatusColor(status: string) {
     }
 }
 
-// Инициализация табов
 export function initAppointmentHandlers() {
     const tabs = document.getElementById('appointment-tabs');
     if (!tabs) return;
 
-    // Генерация табов
     const states = [
         { id: 'pending', label: 'Заявки', icon: 'notifications_active' },
         { id: 'confirmed', label: 'Записи', icon: 'event' },
@@ -250,7 +231,6 @@ export function initAppointmentHandlers() {
 
         btn.onclick = () => {
             currentStatus = s.id;
-            // Обновляем UI кнопок
             Array.from(tabs.children).forEach((child: any) => {
                 child.className = `flex items-center gap-1 px-4 py-2 rounded-full border border-border-dark text-xs font-bold transition-all whitespace-nowrap bg-surface-dark text-text-secondary`;
             });
@@ -261,6 +241,5 @@ export function initAppointmentHandlers() {
         tabs.appendChild(btn);
     });
 
-    // Изначально подсвечиваем активный
     (tabs.children[0] as HTMLElement).click();
 }

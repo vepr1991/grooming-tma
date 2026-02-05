@@ -1,6 +1,6 @@
-import { $, getVal, setVal, show, hide, showToast, setText } from '../../core/dom';
+import { $, getVal, setVal, show, hide, setText } from '../../core/dom';
+import { showToast } from '../../ui/toast';
 import { apiFetch } from '../../core/api';
-import { Telegram } from '../../core/tg';
 
 let parsedServices: any[] = [];
 
@@ -8,21 +8,18 @@ export async function loadServices() {
     const list = $('services-list');
     if (!list) return;
 
-    list.innerHTML = ''; // Очистка контейнера безопасна
+    list.innerHTML = '';
 
     try {
-        // 1. Получаем данные
         const [services, master] = await Promise.all([
             apiFetch<any[]>('/me/services'),
             apiFetch<any>('/me')
         ]);
 
-        // 2. Рендерим список (БЕЗОПАСНО)
         services.forEach(s => {
             const item = document.createElement('div');
             item.className = "bg-surface-dark border border-border-dark p-4 rounded-xl flex justify-between items-center";
 
-            // Левая часть
             const infoDiv = document.createElement('div');
             infoDiv.className = "flex items-center gap-3";
 
@@ -34,7 +31,7 @@ export async function loadServices() {
 
             const nameEl = document.createElement('h4');
             nameEl.className = "font-bold text-white text-sm";
-            nameEl.textContent = s.name; // XSS Protection
+            nameEl.textContent = s.name;
 
             const priceEl = document.createElement('p');
             priceEl.className = "text-xs text-text-secondary";
@@ -45,10 +42,9 @@ export async function loadServices() {
             infoDiv.appendChild(iconDiv);
             infoDiv.appendChild(textDiv);
 
-            // Правая часть (Кнопка удаления)
             const btnDelete = document.createElement('button');
             btnDelete.className = "text-error p-2 active:scale-95 transition-transform";
-            btnDelete.innerHTML = '<span class="material-symbols-outlined">delete</span>'; // Безопасно, т.к. статика
+            btnDelete.innerHTML = '<span class="material-symbols-outlined">delete</span>';
             btnDelete.onclick = () => deleteService(s.id);
 
             item.appendChild(infoDiv);
@@ -56,7 +52,6 @@ export async function loadServices() {
             list.appendChild(item);
         });
 
-        // Лимит для Basic
         const btnAdd = $('btn-toggle-add-service');
         if (btnAdd) {
             if (!master.is_premium && services.length >= 10) {
@@ -87,7 +82,6 @@ async function deleteService(id: number) {
 }
 
 export function initServiceHandlers() {
-    // Тоггл формы добавления
     $('btn-toggle-add-service')?.addEventListener('click', () => {
         const form = $('add-service-form');
         form?.classList.toggle('hidden');
@@ -97,14 +91,12 @@ export function initServiceHandlers() {
         $('add-service-form')?.classList.add('hidden');
     });
 
-    // Сохранение одиночной услуги
     $('btn-save-service')?.addEventListener('click', async () => {
         const name = getVal('new-srv-name');
         const price = parseInt(getVal('new-srv-price'));
         const duration = parseInt(getVal('new-srv-dur')) || 60;
         const desc = getVal('new-srv-desc');
 
-        // Категория (радио кнопки)
         const catDog = document.querySelector('input[name="srv-cat"][value="dog"]') as HTMLInputElement;
         const category = catDog?.checked ? 'dog' : 'cat';
 
@@ -127,9 +119,6 @@ export function initServiceHandlers() {
         }
     });
 
-    // --- ЛОГИКА ИМПОРТА ---
-
-    // Глобальные функции для HTML кнопок
     (window as any).openImport = () => {
         const modal = $('import-modal');
         if(modal) {
@@ -163,14 +152,10 @@ export function initServiceHandlers() {
             (window as any).resetImport();
         } else {
             setText('import-count', parsedServices.length.toString());
-            // Перерисовываем список (упрощенно: удаляем элемент визуально)
-            // Но лучше просто триггернуть перерисовку, если бы это был React.
-            // Тут оставим как есть, пользователь может нажать "Распознать" снова.
             showToast('Элемент удален. Нажмите "Распознать" для обновления списка.', 'success');
         }
     };
 
-    // Кнопка "Распознать"
     $('btn-parse')?.addEventListener('click', () => {
         const text = getVal('import-text');
         const catSelect = $('import-cat') as HTMLSelectElement;
@@ -182,7 +167,6 @@ export function initServiceHandlers() {
 
         if(parsedServices.length === 0) return showToast('Не удалось распознать услуги', 'error');
 
-        // Рендер превью (SECURE)
         const list = $('import-preview-list');
         if(list) {
             list.innerHTML = '';
@@ -192,7 +176,7 @@ export function initServiceHandlers() {
 
                 const nameSpan = document.createElement('span');
                 nameSpan.className = "text-white font-medium truncate flex-1";
-                nameSpan.textContent = s.name; // XSS Protection
+                nameSpan.textContent = s.name;
 
                 const priceSpan = document.createElement('span');
                 priceSpan.className = "text-primary font-bold ml-2";
@@ -203,7 +187,7 @@ export function initServiceHandlers() {
                 delBtn.innerHTML = '<span class="material-symbols-outlined text-sm">close</span>';
                 delBtn.onclick = () => {
                     item.remove();
-                    parsedServices.splice(idx, 1); // Внимание: индексы сдвинутся, это упрощение
+                    parsedServices.splice(idx, 1);
                     setText('import-count', parsedServices.length.toString());
                 };
 
@@ -220,7 +204,6 @@ export function initServiceHandlers() {
         show('import-step-2');
     });
 
-    // Кнопка "Сохранить импорт"
     $('btn-save-import')?.addEventListener('click', async (e) => {
         const btn = e.target as HTMLButtonElement;
         btn.disabled = true;
@@ -242,7 +225,6 @@ export function initServiceHandlers() {
     });
 }
 
-// Парсер
 function parseServicesText(text: string, defaultCategory: 'dog' | 'cat'): any[] {
     const lines = text.split('\n').filter(line => line.trim().length > 0);
     const result = [];
